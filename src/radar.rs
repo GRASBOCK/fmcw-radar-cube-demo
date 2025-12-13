@@ -9,7 +9,7 @@ struct Object {
     range: f64,
 }
 
-fn beat_frequency(carrier_frequency: f64, obj: &Object) -> f64 {
+fn beat_frequency(_carrier_frequency: f64, _obj: &Object) -> f64 {
     100.0E3
 }
 
@@ -30,7 +30,7 @@ impl Radar {
         (self.sampling_frequency * self.chirp_duration) as usize
     }
 
-    pub fn radar_cube(radar: &Radar, data: &Array3<Complex64>) -> Array3<f64> {
+    pub fn radar_cube(radar: &Self, data: &Array3<Complex64>) -> Array3<f64> {
         // extract doppler FFT across time frame
         let nx = radar.sample_count_chirp();
         let ny = radar.chirp_count;
@@ -42,7 +42,7 @@ impl Radar {
         ndfft(
             &data.view(),
             &mut range_fft_data.view_mut(),
-            &mut fft_handler,
+            &fft_handler,
             2,
         );
 
@@ -52,7 +52,7 @@ impl Radar {
         ndfft(
             &range_fft_data.view(),
             &mut range_doppler_fft_data.view_mut(),
-            &mut fft_handler,
+            &fft_handler,
             1,
         );
 
@@ -62,13 +62,13 @@ impl Radar {
         ndfft(
             &range_doppler_fft_data.view(),
             &mut angle_range_doppler_fft_data.view_mut(),
-            &mut fft_handler,
+            &fft_handler,
             0,
         );
 
-        let angle_range_doppler_fft_data = angle_range_doppler_fft_data.map(|v| v.norm());
+        
 
-        angle_range_doppler_fft_data
+        angle_range_doppler_fft_data.map(|v| v.norm())
     }
 }
 
@@ -99,7 +99,7 @@ fn scene_to_data(radar: &Radar, objects: &Vec<Object>) -> Array3<Complex64> {
     let sample_count = radar.sample_count_chirp();
     let mut data = Array3::<Complex64>::zeros((radar.receivers, radar.chirp_count, sample_count));
     for obj in objects {
-        data = data + obj_to_data(radar, &obj);
+        data = data + obj_to_data(radar, obj);
     }
     data
 }
