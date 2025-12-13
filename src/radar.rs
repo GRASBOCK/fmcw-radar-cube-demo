@@ -9,14 +9,15 @@ struct Object {
     range: f64,
 }
 
-fn beat_frequency(_carrier_frequency: f64, _obj: &Object) -> f64 {
-    100.0E3
+fn beat_frequency(radar: &Radar, obj: &Object) -> f64 {
+    obj.range * 2.0 * radar.chirp_rate() / radar.c
 }
 
 struct Radar {
     pub carrier_frequency: f64,
     pub c: f64,
     pub sampling_frequency: f64,
+    pub bandwidth: f64,
     pub chirp_duration: f64,
     pub chirp_count: usize,
     pub receivers: usize,
@@ -27,16 +28,19 @@ impl Radar {
     pub fn frame_time(&self) -> f64 {
         self.chirp_count as f64 * self.chirp_duration
     }
+    pub fn chirp_rate(&self) -> f64 {
+        self.bandwidth * self.chirp_duration
+    }
 
     pub fn sample_count_chirp(&self) -> usize {
         (self.sampling_frequency * self.chirp_duration) as usize
     }
 
     pub fn radar_cube(radar: &Self, data: &Array3<Complex64>) -> Array3<f64> {
-        // extract doppler FFT across time frame
         let nx = radar.sample_count_chirp();
         let ny = radar.chirp_count;
         let nz = radar.receivers;
+        println!("{} {} {}", nz, ny, nx);
         assert_eq!(
             *data.shape(),
             [nz, ny, nx],
@@ -84,7 +88,7 @@ fn sample_signal(frequency: f64, phase: f64, count: usize, sample_time: f64) -> 
 }
 
 fn obj_to_data(radar: &Radar, obj: &Object) -> Array3<Complex64> {
-    let fb = beat_frequency(radar.carrier_frequency, obj);
+    let fb = beat_frequency(radar, obj);
     let sample_count = radar.sample_count_chirp();
     let mut data = Array3::<Complex64>::zeros((radar.receivers, radar.chirp_count, sample_count));
     for r in 0..radar.receivers {
@@ -124,6 +128,7 @@ mod tests {
             c: 300000.0,
             sampling_frequency: 2e6,
             chirp_duration: 1e-3,
+            bandwidth: 4e9,
             chirp_count: 8,
             receivers: 4,
             receiver_spacing: 0.1,
@@ -134,9 +139,9 @@ mod tests {
             range: 10.0,
         };
         let obj2 = Object {
-            angle: 0.0,
-            velocity: 0.0,
-            range: 10.0,
+            angle: -4.0,
+            velocity: 20.0,
+            range: 40.0,
         };
         let data = scene_to_data(&radar, &vec![obj1, obj2]);
         let _ = Radar::radar_cube(&radar, &data);
