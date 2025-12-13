@@ -15,10 +15,12 @@ fn beat_frequency(_carrier_frequency: f64, _obj: &Object) -> f64 {
 
 struct Radar {
     pub carrier_frequency: f64,
+    pub c: f64,
     pub sampling_frequency: f64,
     pub chirp_duration: f64,
     pub chirp_count: usize,
     pub receivers: usize,
+    pub receiver_spacing: f64,
 }
 
 impl Radar {
@@ -41,7 +43,7 @@ impl Radar {
             "Shape of input data is not as expected"
         );
 
-        let mut range_fft_data = Array3::<Complex<f64>>::zeros((nz, ny, nx / 2 + 1));
+        let mut range_fft_data = Array3::<Complex<f64>>::zeros((nz, ny, nx));
         let fft_handler = FftHandler::<f64>::new(nx);
         ndfft(
             &data.view(),
@@ -50,8 +52,7 @@ impl Radar {
             2,
         );
 
-        let mut range_doppler_fft_data =
-            Array3::<Complex<f64>>::zeros((nz, ny / 2 + 1, nx / 2 + 1));
+        let mut range_doppler_fft_data = Array3::<Complex<f64>>::zeros((nz, ny, nx));
         let fft_handler = FftHandler::<f64>::new(ny);
         ndfft(
             &range_fft_data.view(),
@@ -60,8 +61,7 @@ impl Radar {
             1,
         );
 
-        let mut angle_range_doppler_fft_data =
-            Array3::<Complex<f64>>::zeros((nz / 2 + 1, ny / 2 + 1, nx / 2 + 1));
+        let mut angle_range_doppler_fft_data = Array3::<Complex<f64>>::zeros((nz, ny, nx));
         let fft_handler = FftHandler::<f64>::new(nz);
         ndfft(
             &range_doppler_fft_data.view(),
@@ -89,7 +89,14 @@ fn obj_to_data(radar: &Radar, obj: &Object) -> Array3<Complex64> {
     let mut data = Array3::<Complex64>::zeros((radar.receivers, radar.chirp_count, sample_count));
     for r in 0..radar.receivers {
         for c in 0..radar.chirp_count {
-            let phase = 0.0;
+            let time_shift = 2.0 * obj.velocity * radar.chirp_duration / radar.c;
+            let phase_shift_due_to_velocity =
+                -2.0 * std::f64::consts::PI * radar.carrier_frequency * time_shift;
+            let wavelength = radar.c / radar.carrier_frequency;
+            let phase_shift_due_to_antenna_array =
+                2.0 * std::f64::consts::PI * radar.receiver_spacing * obj.angle.sin() / wavelength;
+            let phase = phase_shift_due_to_velocity * c as f64
+                + r as f64 * phase_shift_due_to_antenna_array;
             let v = sample_signal(fb, phase, sample_count, 1.0 / radar.carrier_frequency);
             data.slice_mut(s![r, c, ..]).assign(&v);
         }
@@ -114,10 +121,12 @@ mod tests {
     fn test_all_in_one() {
         let radar = Radar {
             carrier_frequency: 77e9,
+            c: 300000.0,
             sampling_frequency: 2e6,
             chirp_duration: 1e-3,
             chirp_count: 8,
             receivers: 4,
+            receiver_spacing: 0.1,
         };
         let obj1 = Object {
             angle: 0.0,
