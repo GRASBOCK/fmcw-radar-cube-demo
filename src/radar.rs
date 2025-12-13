@@ -35,7 +35,11 @@ impl Radar {
         let nx = radar.sample_count_chirp();
         let ny = radar.chirp_count;
         let nz = radar.receivers;
-        assert_eq!(*data.shape(), [nz, ny, nx]);
+        assert_eq!(
+            *data.shape(),
+            [nz, ny, nx],
+            "Shape of input data is not as expected"
+        );
 
         let mut range_fft_data = Array3::<Complex<f64>>::zeros((nz, ny, nx / 2 + 1));
         let mut fft_handler = FftHandler::<f64>::new(nx);
@@ -65,8 +69,6 @@ impl Radar {
             &fft_handler,
             0,
         );
-
-        
 
         angle_range_doppler_fft_data.map(|v| v.norm())
     }
