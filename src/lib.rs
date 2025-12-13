@@ -2,4 +2,4 @@
 
 mod app;
 mod radar;
-pub use app::TemplateApp;
+pub use app::App;
