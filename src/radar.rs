@@ -3,17 +3,18 @@ use ndarray::{Array3, s};
 use ndrustfft::{Complex, FftHandler, ndfft};
 use rustfft::num_complex::Complex64;
 
-struct Object {
-    angle: f64,
-    velocity: f64,
-    range: f64,
+#[derive(Debug, Clone)]
+pub struct Object {
+    pub angle: f64,
+    pub velocity: f64,
+    pub range: f64,
 }
 
 fn beat_frequency(radar: &Radar, obj: &Object) -> f64 {
     obj.range * 2.0 * radar.chirp_rate() / radar.c
 }
 
-struct Radar {
+pub struct Radar {
     pub carrier_frequency: f64,
     pub c: f64,
     pub sampling_frequency: f64,
@@ -36,10 +37,10 @@ impl Radar {
         (self.sampling_frequency * self.chirp_duration) as usize
     }
 
-    pub fn radar_cube(radar: &Self, data: &Array3<Complex64>) -> Array3<f64> {
-        let nx = radar.sample_count_chirp();
-        let ny = radar.chirp_count;
-        let nz = radar.receivers;
+    pub fn radar_cube(&self, data: &Array3<Complex64>) -> Array3<f64> {
+        let nx = self.sample_count_chirp();
+        let ny = self.chirp_count;
+        let nz = self.receivers;
         println!("{} {} {}", nz, ny, nx);
         assert_eq!(
             *data.shape(),
@@ -55,40 +56,47 @@ impl Radar {
             &fft_handler,
             2,
         );
+        range_fft_data.map(|v| v.norm())
 
-        let mut range_doppler_fft_data = Array3::<Complex<f64>>::zeros((nz, ny, nx));
-        let fft_handler = FftHandler::<f64>::new(ny);
-        ndfft(
-            &range_fft_data.view(),
-            &mut range_doppler_fft_data.view_mut(),
-            &fft_handler,
-            1,
-        );
+        //let mut range_doppler_fft_data = Array3::<Complex64>::zeros((nz, ny, nx));
+        //let fft_handler = FftHandler::<f64>::new(ny);
+        //ndfft(
+        //    &range_fft_data.view(),
+        //    &mut range_doppler_fft_data.view_mut(),
+        //    &fft_handler,
+        //    1,
+        //);
 
-        let mut angle_range_doppler_fft_data = Array3::<Complex<f64>>::zeros((nz, ny, nx));
-        let fft_handler = FftHandler::<f64>::new(nz);
-        ndfft(
-            &range_doppler_fft_data.view(),
-            &mut angle_range_doppler_fft_data.view_mut(),
-            &fft_handler,
-            0,
-        );
+        //let mut angle_range_doppler_fft_data = Array3::<Complex64>::zeros((nz, ny, nx));
+        //let fft_handler = FftHandler::<f64>::new(nz);
+        //ndfft(
+        //    &range_doppler_fft_data.view(),
+        //    &mut angle_range_doppler_fft_data.view_mut(),
+        //    &fft_handler,
+        //    0,
+        //);
 
-        angle_range_doppler_fft_data.map(|v| v.norm())
+        //angle_range_doppler_fft_data.map(|v| v.norm())
     }
 }
 
-fn sample_signal(frequency: f64, phase: f64, count: usize, sample_time: f64) -> Array1<Complex64> {
+pub fn sample_signal(
+    frequency: f64,
+    phase: f64,
+    count: usize,
+    sample_time: f64,
+) -> Array1<Complex64> {
     let mut data = Array1::<Complex64>::zeros(count);
     for (i, v) in data.iter_mut().enumerate() {
         let t = i as f64 * sample_time;
-        *v += Complex64::from_polar(1.0, 2.0 * std::f64::consts::PI * frequency * t + phase).sin();
+        *v = Complex64::from_polar(1.0, 2.0 * std::f64::consts::PI * frequency * t + phase);
     }
     data
 }
 
 fn obj_to_data(radar: &Radar, obj: &Object) -> Array3<Complex64> {
     let fb = beat_frequency(radar, obj);
+    println!("{:?} beat: {}", obj, fb);
     let sample_count = radar.sample_count_chirp();
     let mut data = Array3::<Complex64>::zeros((radar.receivers, radar.chirp_count, sample_count));
     for r in 0..radar.receivers {
@@ -108,7 +116,7 @@ fn obj_to_data(radar: &Radar, obj: &Object) -> Array3<Complex64> {
     data
 }
 
-fn scene_to_data(radar: &Radar, objects: &Vec<Object>) -> Array3<Complex64> {
+pub fn scene_to_data(radar: &Radar, objects: &Vec<Object>) -> Array3<Complex64> {
     let sample_count = radar.sample_count_chirp();
     let mut data = Array3::<Complex64>::zeros((radar.receivers, radar.chirp_count, sample_count));
     for obj in objects {
@@ -117,9 +125,57 @@ fn scene_to_data(radar: &Radar, objects: &Vec<Object>) -> Array3<Complex64> {
     data
 }
 
+fn detections(array: &Array3<f64>) -> Vec<(f64, f64, f64)> {
+    let threshold = 1e4;
+    let mut indices = Vec::new();
+    for ((i, j, k), &val) in array.indexed_iter() {
+        if val > threshold {
+            indices.push((i, j, k));
+        }
+    }
+    println!("{:?}", indices);
+    vec![(0.0, 0.0, 0.0); 2]
+}
+
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::PI;
+
     use super::*;
+
+    #[test]
+    fn test_sample_signal_basic() {
+        let frequency = 1.0;
+        let phase = 0.0;
+        let count = 10;
+        let sample_time = 0.25;
+        let signal = sample_signal(frequency, phase, count, sample_time);
+        assert_eq!(signal.len(), count);
+        // Check that all values are finite
+        let expected = [
+            (1.0, 0.0),
+            (1.0, PI / 2.0),
+            (1.0, PI),
+            (1.0, PI / 2.0 * 3.0),
+            (1.0, 0.0),
+            (1.0, PI / 2.0),
+            (1.0, PI),
+            (1.0, PI / 2.0 * 3.0),
+            (1.0, 0.0),
+            (1.0, PI / 2.0),
+        ];
+        let margin = 1e-10;
+        for (i, &val) in expected.iter().enumerate() {
+            let exp = Complex::from_polar(val.0, val.1);
+            assert!(
+                (signal[i].re - exp.re).abs() < margin && (signal[i].im - exp.im).abs() < margin,
+                "Mismatch at index {}: got {:?}, expected {:?}",
+                i,
+                signal[i],
+                exp
+            );
+        }
+    }
 
     #[test]
     fn test_all_in_one() {
@@ -143,7 +199,36 @@ mod tests {
             velocity: 20.0,
             range: 40.0,
         };
-        let data = scene_to_data(&radar, &vec![obj1, obj2]);
-        let _ = Radar::radar_cube(&radar, &data);
+        let data = scene_to_data(&radar, &vec![obj1.clone(), obj2.clone()]);
+        let output = Radar::radar_cube(&radar, &data);
+        let detections = detections(&output);
+        assert_eq!(detections.len(), 2);
+        let expected = vec![
+            (obj1.angle, obj1.velocity, obj1.range),
+            (obj2.angle, obj2.velocity, obj2.range),
+        ];
+        for (det, exp) in detections.iter().zip(expected.iter()) {
+            let (det_angle, det_velocity, det_range) = det;
+            let (exp_angle, exp_velocity, exp_range) = exp;
+            // Allow some tolerance for floating point comparison
+            assert!(
+                (det_angle - exp_angle).abs() < 1e-2,
+                "Angle mismatch: detected {}, expected {}",
+                det_angle,
+                exp_angle
+            );
+            assert!(
+                (det_velocity - exp_velocity).abs() < 1e-2,
+                "Velocity mismatch: detected {}, expected {}",
+                det_velocity,
+                exp_velocity
+            );
+            assert!(
+                (det_range - exp_range).abs() < 1e-2,
+                "Range mismatch: detected {}, expected {}",
+                det_range,
+                exp_range
+            );
+        }
     }
 }
