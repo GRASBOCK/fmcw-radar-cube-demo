@@ -53,6 +53,10 @@ path = "src/main.rs"
 name = "plot_sampling"
 path = "src/plot_sampling.rs"
 
+[[bin]]
+name = "plot_fft"
+path = "src/plot_fft.rs"
+
 [patch.crates-io]
 
 # If you want to use the bleeding edge version of egui and eframe:
