@@ -34,10 +34,10 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Radar 1D FFT");
 
-            ui.add(egui::Slider::new(&mut self.frequency, 0.1..=2.0).text("Frequency"));
+            ui.add(egui::Slider::new(&mut self.frequency, 0.1..=80E9).text("Frequency"));
             ui.add(egui::Slider::new(&mut self.phase, 0.0..=2.0 * PI).text("Phase"));
-            ui.add(egui::Slider::new(&mut self.count, 2..=2048).text("Count"));
-            ui.add(egui::Slider::new(&mut self.sample_time, 0.01..=1.0).text("Sample Time"));
+            ui.add(egui::Slider::new(&mut self.count, 2..=80).text("Count"));
+            ui.add(egui::Slider::new(&mut self.sample_time, 0.000040..=1.0).text("Sample Time"));
 
             ui.separator();
 
