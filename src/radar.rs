@@ -30,7 +30,19 @@ impl Radar {
         self.chirp_count as f64 * self.chirp_duration
     }
     pub fn chirp_rate(&self) -> f64 {
-        self.bandwidth * self.chirp_duration
+        self.bandwidth / self.chirp_duration
+    }
+
+    pub fn max_range(&self) -> f64 {
+        self.c * self.sampling_frequency / 2.0 / self.chirp_rate()
+    }
+
+    pub fn max_velocity(&self) -> f64 {
+        self.wavelength() / (4.0 * self.chirp_duration)
+    }
+
+    pub fn wavelength(&self) -> f64 {
+        self.c / self.carrier_frequency
     }
 
     pub fn sample_count_chirp(&self) -> usize {
