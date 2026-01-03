@@ -38,6 +38,10 @@ impl Radar {
         self.c * self.sampling_frequency / 2.0 / self.chirp_rate()
     }
 
+    pub fn range_resolution(&self) -> f64 {
+        self.c / 2.0 / self.bandwidth
+    }
+
     pub fn max_velocity(&self) -> f64 {
         self.wavelength() / (4.0 * self.chirp_duration)
     }
@@ -100,11 +104,11 @@ pub fn sample_signal(
     frequency: f64,
     phase: f64,
     count: usize,
-    sample_duration: f64,
+    sample_time: f64,
 ) -> Array1<Complex64> {
     let mut data = Array1::<Complex64>::zeros(count);
     for (i, v) in data.iter_mut().enumerate() {
-        let t = i as f64 * sample_duration;
+        let t = i as f64 * sample_time;
         *v = Complex64::from_polar(1.0, 2.0 * std::f64::consts::PI * frequency * t + phase);
     }
     data
@@ -125,7 +129,7 @@ fn obj_to_data(radar: &Radar, obj: &Object) -> Array3<Complex64> {
         for c in 0..radar.chirp_count {
             let phase = phase_shift_due_to_velocity * c as f64
                 + r as f64 * phase_shift_due_to_antenna_array;
-            let v = sample_signal(fb, phase, sample_count, 1.0 / radar.chirp_duration);
+            let v = sample_signal(fb, phase, sample_count, 1.0 / radar.sampling_frequency);
             data.slice_mut(s![r, c, ..]).assign(&v);
         }
     }
