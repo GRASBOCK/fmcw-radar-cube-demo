@@ -41,6 +41,10 @@ impl Radar {
         self.wavelength() / (4.0 * self.chirp_duration)
     }
 
+    pub fn max_angle(&self) -> f64 {
+        (self.wavelength() / (2.0 * self.receiver_spacing)).asin()
+    }
+
     pub fn wavelength(&self) -> f64 {
         self.c / self.carrier_frequency
     }
