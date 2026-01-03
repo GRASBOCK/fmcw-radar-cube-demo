@@ -95,11 +95,11 @@ pub fn sample_signal(
     frequency: f64,
     phase: f64,
     count: usize,
-    sample_time: f64,
+    sample_duration: f64,
 ) -> Array1<Complex64> {
     let mut data = Array1::<Complex64>::zeros(count);
     for (i, v) in data.iter_mut().enumerate() {
-        let t = i as f64 * sample_time;
+        let t = i as f64 * sample_duration;
         *v = Complex64::from_polar(1.0, 2.0 * std::f64::consts::PI * frequency * t + phase);
     }
     data
