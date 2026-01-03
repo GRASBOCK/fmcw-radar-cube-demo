@@ -55,10 +55,7 @@ impl eframe::App for App {
             ndfft(&signal.view(), &mut spectrum.view_mut(), &handler, 0);
 
             // Compute magnitude
-            let fft_magnitude: Vec<f64> = spectrum
-                .iter()
-                .map(|c| c.re.hypot(c.im))
-                .collect();
+            let fft_magnitude: Vec<f64> = spectrum.iter().map(|c| c.re.hypot(c.im)).collect();
 
             // Frequency bins
             let sample_rate = 1.0 / self.sample_time;
