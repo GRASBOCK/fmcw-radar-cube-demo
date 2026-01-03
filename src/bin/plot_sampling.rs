@@ -1,5 +1,4 @@
 use fmcw_radar_cube_demo::radar;
-use ndarray::{Array3, s};
 use std::f64::consts::PI;
 
 pub struct App {

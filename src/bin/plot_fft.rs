@@ -46,7 +46,7 @@ impl eframe::App for App {
                 radar::sample_signal(self.frequency, self.phase, self.count, self.sample_time);
 
             // Convert sampled_data to ndarray Array1<Complex<f64>>
-            let mut signal: Array1<Complex<f64>> =
+            let signal: Array1<Complex<f64>> =
                 Array1::from_iter(sampled_data.iter().map(|x| Complex { re: x.re, im: x.im }));
 
             // FFT using ndrustfft (ndfft for 1D)
@@ -57,7 +57,7 @@ impl eframe::App for App {
             // Compute magnitude
             let fft_magnitude: Vec<f64> = spectrum
                 .iter()
-                .map(|c| (c.re.powi(2) + c.im.powi(2)).sqrt())
+                .map(|c| c.re.hypot(c.im))
                 .collect();
 
             // Frequency bins
@@ -76,7 +76,7 @@ impl eframe::App for App {
             egui_plot::Plot::new("fft_plot").show(ui, |plot_ui| {
                 let plot_line = egui_plot::Line::new(
                     "FFT Magnitude",
-                    egui_plot::PlotPoints::from_iter(fft_points.into_iter()),
+                    egui_plot::PlotPoints::from_iter(fft_points),
                 )
                 .color(egui::Color32::GREEN)
                 .width(2.0)
