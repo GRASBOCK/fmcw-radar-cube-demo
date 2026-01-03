@@ -12,6 +12,7 @@ pub struct Object {
 
 fn beat_frequency(radar: &Radar, obj: &Object) -> f64 {
     obj.range * 2.0 * radar.chirp_rate() / radar.c
+    // + TODO: doppler
 }
 
 pub struct Radar {
