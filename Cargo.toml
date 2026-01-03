@@ -57,6 +57,10 @@ path = "src/plot_sampling.rs"
 name = "plot_fft"
 path = "src/plot_fft.rs"
 
+[[bin]]
+name = "plot_range_doppler"
+path = "src/bin/plot_range_doppler.rs"
+
 [patch.crates-io]
 
 # If you want to use the bleeding edge version of egui and eframe:
