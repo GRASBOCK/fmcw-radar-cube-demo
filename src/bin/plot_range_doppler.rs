@@ -1,6 +1,5 @@
 use fmcw_radar_cube_demo::radar::{Object, Radar, scene_to_data};
 use ndarray::{Array2, Array3, s};
-use ndrustfft::{Complex, FftHandler, ndfft};
 use rustfft::num_complex::Complex64;
 
 /// 2D Range-Doppler heatmap viewer (single receiver).
@@ -10,7 +9,7 @@ use rustfft::num_complex::Complex64;
 /// 2) Range FFT along samples axis (axis=2)
 /// 3) Doppler FFT along chirps axis (axis=1)
 /// 4) Take magnitude, extract receiver 0 => (Ny, Nx)
-/// 5) Plot as a heatmap using egui_plot.
+/// 5) Plot as a heatmap using `egui_plot`.
 pub struct App {
     // Radar setup:
     carrier_frequency: f64,
@@ -278,9 +277,9 @@ impl eframe::App for App {
             // Top: X axis label
             ui.horizontal(|ui| {
                 ui.label("Range (m):");
-                ui.label(format!("max {:.2}", max_range_m));
+                ui.label(format!("max {max_range_m:.2}"));
                 ui.add_space(8.0);
-                ui.label(format!("(≈ {:.4} m/bin)", range_bin_width_m));
+                ui.label(format!("(≈ {range_bin_width_m:.4} m/bin)"));
                 ui.add_space(8.0);
                 ui.label(format!("(≈ {:.4} m)", radar.range_resolution()));
             });
@@ -311,15 +310,14 @@ impl eframe::App for App {
                 for t in range_ticks {
                     let r = t * max_range_m;
                     ui.add_space(8.0);
-                    ui.label(format!("{:.1}", r));
+                    ui.label(format!("{r:.1}"));
                 }
             });
 
             ui.separator();
 
             ui.small(format!(
-                "Shape: doppler_bins (chirps) = {}, range_bins (samples) = {}. Receiver: 1 (no angle FFT).",
-                ny, nx
+                "Shape: doppler_bins (chirps) = {ny}, range_bins (samples) = {nx}. Receiver: 1 (no angle FFT)."
             ));
         });
         // Open a separate window and draw the signal heatmap there.

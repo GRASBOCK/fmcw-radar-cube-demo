@@ -2,7 +2,7 @@ use crate::radar::{Object, Radar, scene_to_data};
 use ndarray::{Array2, Array3, s};
 use rustfft::num_complex::Complex64;
 
-/// Range-Angle heatmap viewer (multi receiver; uses Radar::radar_cube which already includes angle FFT).
+/// Range-Angle heatmap viewer (multi receiver; uses `Radar::radar_cube` which already includes angle FFT).
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct App {
@@ -88,7 +88,7 @@ impl App {
         ]
     }
 
-    /// Returns Range-Angle map as (angle_bins=nz, range_bins=nx).
+    /// Returns Range-Angle map as (`angle_bins=nz`, `range_bins=nx`).
     fn range_angle_map(&self) -> (Array2<f64>, Radar, usize, usize, usize) {
         let radar = self.radar();
         let objects = self.scene();
@@ -238,8 +238,7 @@ impl eframe::App for App {
             let angle_max = 90.0;
 
             ui.label(format!(
-                "Range–Angle map. cube shape (angle, doppler, range)=({}, {}, {}). Max range ≈ {:.1} m",
-                nz, ny, nx, max_range_m
+                "Range–Angle map. cube shape (angle, doppler, range)=({nz}, {ny}, {nx}). Max range ≈ {max_range_m:.1} m"
             ));
 
             let available = ui.available_size();
@@ -251,7 +250,7 @@ impl eframe::App for App {
                 ui.label("Range (m):");
                 ui.label("0");
                 ui.add_space(8.0);
-                ui.label(format!("{:.2}", max_range_m));
+                ui.label(format!("{max_range_m:.2}"));
             });
 
             ui.horizontal(|ui| {

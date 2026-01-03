@@ -1,4 +1,4 @@
-mod radar;
+use fmcw_radar_cube_demo::radar;
 use ndarray::Array1;
 use ndrustfft::{Complex, FftHandler, ndfft};
 use std::f64::consts::PI;
@@ -114,7 +114,7 @@ fn main() -> eframe::Result {
             .with_inner_size([500.0, 350.0])
             .with_min_inner_size([300.0, 220.0])
             .with_icon(
-                eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
+                eframe::icon_data::from_png_bytes(&include_bytes!("../../assets/icon-256.png")[..])
                     .expect("Failed to load icon"),
             ),
         ..Default::default()

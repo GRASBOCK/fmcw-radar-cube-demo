@@ -62,7 +62,7 @@ impl Radar {
         let nx = self.sample_count_chirp();
         let ny = self.chirp_count;
         let nz = self.receivers;
-        println!("{} {} {}", nz, ny, nx);
+        println!("{nz} {ny} {nx}");
         assert_eq!(
             *data.shape(),
             [nz, ny, nx],
@@ -116,7 +116,7 @@ pub fn sample_signal(
 
 fn obj_to_data(radar: &Radar, obj: &Object) -> Array3<Complex64> {
     let fb = beat_frequency(radar, obj);
-    println!("{:?} beat: {}", obj, fb);
+    println!("{obj:?} beat: {fb}");
     let sample_count = radar.sample_count_chirp();
     let mut data = Array3::<Complex64>::zeros((radar.receivers, radar.chirp_count, sample_count));
     let wavelength = radar.c / radar.carrier_frequency;
@@ -153,7 +153,7 @@ fn detections(array: &Array3<f64>) -> Vec<(f64, f64, f64)> {
             indices.push((i, j, k));
         }
     }
-    println!("{:?}", indices);
+    println!("{indices:?}");
     vec![(0.0, 0.0, 0.0); 2]
 }
 
