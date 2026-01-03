@@ -145,7 +145,7 @@ impl eframe::App for App {
                 egui::widgets::global_theme_preference_buttons(ui);
             });
         });
-
+        let wavelength = self.radar().wavelength();
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.heading("Radar parameters");
 
@@ -162,7 +162,7 @@ impl eframe::App for App {
 
             ui.add(egui::Slider::new(&mut self.receivers, 2..=64).text("Receivers (Nz)"));
             ui.add(
-                egui::Slider::new(&mut self.receiver_spacing, 0.0..=0.02)
+                egui::Slider::new(&mut self.receiver_spacing, 0.0..=wavelength / 2.0)
                     .text("Receiver spacing (m)"),
             );
         });
