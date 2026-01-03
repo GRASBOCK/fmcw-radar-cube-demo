@@ -169,19 +169,6 @@ impl eframe::App for App {
             });
 
             let radar = self.radar();
-            let (sig2d, ny, nx) = self.signal_map();
-
-            // Render a heatmap ourselves using egui::ColorImage + egui::Image,
-            // because egui_plot 0.34 doesn't provide a heatmap primitive.
-            let (min_v, max_v) = if self.log_scale {
-                (self.floor_db, 0.0)
-            } else {
-                let max_v = sig2d
-                    .iter()
-                    .fold(f64::NEG_INFINITY, |acc, &v| if v > acc { v } else { acc })
-                    .max(0.0);
-                (0.0, max_v)
-            };
 
             fn clamp01(x: f64) -> f32 {
                 if x <= 0.0 {
@@ -203,38 +190,6 @@ impl eframe::App for App {
                 let b = (0.30 + 1.10 * t - 1.50 * t * t + 0.90 * t * t * t).clamp(0.0, 1.0);
                 egui::Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
             }
-
-            let denom = (max_v - min_v).max(1e-12);
-
-            // Image dims: width = range bins (x), height = doppler bins (y).
-            // egui 0.33 `ColorImage::new` expects the initial pixel buffer as a Vec<Color32>.
-            let mut img = egui::ColorImage::new([nx, ny], vec![egui::Color32::BLACK; nx * ny]);
-            for y in 0..ny {
-                for x in 0..nx {
-                    let v = sig2d[(y, x)];
-                    let t = (v - min_v) / denom;
-                    let t = clamp01(t);
-                    img.pixels[y * nx + x] = colormap_turbo_like(t);
-                }
-            }
-
-            let texture = ui.ctx().load_texture(
-                "range_doppler_texture",
-                img,
-                egui::TextureOptions::NEAREST,
-            );
-
-            let available = ui.available_size();
-            let aspect = ny as f32 / nx as f32;
-            let desired_w = available.x.max(1.0);
-            let desired_h = (desired_w * aspect).min(available.y.max(1.0));
-
-            ui.add(egui::Image::from_texture(&texture).fit_to_exact_size(egui::vec2(
-                desired_w,
-                desired_h,
-            )));
-
-            // ==============
 
             let (rd2d, ny, nx) = self.range_doppler_map();
 
@@ -323,11 +278,11 @@ impl eframe::App for App {
             // Top: X axis label
             ui.horizontal(|ui| {
                 ui.label("Range (m):");
-                ui.label(format!("0"));
-                ui.add_space(8.0);
-                ui.label(format!("{:.2}", max_range_m));
+                ui.label(format!("max {:.2}", max_range_m));
                 ui.add_space(8.0);
                 ui.label(format!("(≈ {:.4} m/bin)", range_bin_width_m));
+                ui.add_space(8.0);
+                ui.label(format!("(≈ {:.4} m)", radar.range_resolution()));
             });
 
             // Middle: Y axis ticks + image
@@ -367,6 +322,76 @@ impl eframe::App for App {
                 ny, nx
             ));
         });
+        // Open a separate window and draw the signal heatmap there.
+        egui::Window::new("Signal (raw real part) heatmap")
+            .resizable(true)
+            .default_size([720.0, 360.0])
+            .show(ctx, |ui| {
+                let (sig2d, ny, nx) = self.signal_map();
+
+                // Render a heatmap ourselves using egui::ColorImage + egui::Image,
+                // because egui_plot 0.34 doesn't provide a heatmap primitive.
+                let (min_v, max_v) = if self.log_scale {
+                    (self.floor_db, 0.0)
+                } else {
+                    let max_v = sig2d
+                        .iter()
+                        .fold(f64::NEG_INFINITY, |acc, &v| if v > acc { v } else { acc })
+                        .max(0.0);
+                    (0.0, max_v)
+                };
+
+                fn clamp01(x: f64) -> f32 {
+                    if x <= 0.0 {
+                        0.0
+                    } else if x >= 1.0 {
+                        1.0
+                    } else {
+                        x as f32
+                    }
+                }
+
+                // A simple "turbo-like" gradient (not exact turbo; good enough for visualization).
+                fn colormap_turbo_like(t: f32) -> egui::Color32 {
+                    // Piecewise polynomial-ish approximation (hand-tuned).
+                    // t in [0,1]
+                    let t = t.clamp(0.0, 1.0);
+                    let r = (0.10 + 1.25 * t - 0.35 * t * t).clamp(0.0, 1.0);
+                    let g = (0.05 + 1.60 * t - 1.10 * t * t + 0.35 * t * t * t).clamp(0.0, 1.0);
+                    let b = (0.30 + 1.10 * t - 1.50 * t * t + 0.90 * t * t * t).clamp(0.0, 1.0);
+                    egui::Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
+                }
+
+                let denom = (max_v - min_v).max(1e-12);
+
+                // Image dims: width = range bins (x), height = doppler bins (y).
+                // egui 0.33 `ColorImage::new` expects the initial pixel buffer as a Vec<Color32>.
+                let mut img = egui::ColorImage::new([nx, ny], vec![egui::Color32::BLACK; nx * ny]);
+                for y in 0..ny {
+                    for x in 0..nx {
+                        let v = sig2d[(y, x)];
+                        let t = (v - min_v) / denom;
+                        let t = clamp01(t);
+                        img.pixels[y * nx + x] = colormap_turbo_like(t);
+                    }
+                }
+
+                let texture = ui.ctx().load_texture(
+                    "range_doppler_texture",
+                    img,
+                    egui::TextureOptions::NEAREST,
+                );
+
+                let available = ui.available_size();
+                let aspect = ny as f32 / nx as f32;
+                let desired_w = available.x.max(1.0);
+                let desired_h = (desired_w * aspect).min(available.y.max(1.0));
+
+                ui.add(
+                    egui::Image::from_texture(&texture)
+                        .fit_to_exact_size(egui::vec2(desired_w, desired_h)),
+                );
+            });
     }
 }
 
