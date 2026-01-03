@@ -68,27 +68,26 @@ impl Radar {
             &fft_handler,
             2,
         );
-        range_fft_data.map(|v| v.norm())
 
-        //let mut range_doppler_fft_data = Array3::<Complex64>::zeros((nz, ny, nx));
-        //let fft_handler = FftHandler::<f64>::new(ny);
-        //ndfft(
-        //    &range_fft_data.view(),
-        //    &mut range_doppler_fft_data.view_mut(),
-        //    &fft_handler,
-        //    1,
-        //);
+        let mut range_doppler_fft_data = Array3::<Complex64>::zeros((nz, ny, nx));
+        let fft_handler = FftHandler::<f64>::new(ny);
+        ndfft(
+            &range_fft_data.view(),
+            &mut range_doppler_fft_data.view_mut(),
+            &fft_handler,
+            1,
+        );
 
-        //let mut angle_range_doppler_fft_data = Array3::<Complex64>::zeros((nz, ny, nx));
-        //let fft_handler = FftHandler::<f64>::new(nz);
-        //ndfft(
-        //    &range_doppler_fft_data.view(),
-        //    &mut angle_range_doppler_fft_data.view_mut(),
-        //    &fft_handler,
-        //    0,
-        //);
+        let mut angle_range_doppler_fft_data = Array3::<Complex64>::zeros((nz, ny, nx));
+        let fft_handler = FftHandler::<f64>::new(nz);
+        ndfft(
+            &range_doppler_fft_data.view(),
+            &mut angle_range_doppler_fft_data.view_mut(),
+            &fft_handler,
+            0,
+        );
 
-        //angle_range_doppler_fft_data.map(|v| v.norm())
+        angle_range_doppler_fft_data.map(|v| v.norm())
     }
 }
 

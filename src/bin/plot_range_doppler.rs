@@ -98,24 +98,9 @@ impl App {
 
         debug_assert_eq!(nz, 1);
 
-        // Range FFT along samples axis (axis 2): (nz, ny, nx)
-        let mut range_fft = Array3::<Complex<f64>>::zeros((nz, ny, nx));
-        let range_handler = FftHandler::<f64>::new(nx);
-        ndfft(&data.view(), &mut range_fft.view_mut(), &range_handler, 2);
+        let rc = radar.radar_cube(&data);
 
-        // Doppler FFT along chirp axis (axis 1): (nz, ny, nx)
-        let mut rd_fft = Array3::<Complex<f64>>::zeros((nz, ny, nx));
-        let doppler_handler = FftHandler::<f64>::new(ny);
-        ndfft(
-            &range_fft.view(),
-            &mut rd_fft.view_mut(),
-            &doppler_handler,
-            1,
-        );
-
-        // Magnitude, take receiver 0 => (ny, nx)
-        let rd_mag = rd_fft.map(|v| v.norm());
-        let rd2d: Array2<f64> = rd_mag.slice(s![0, .., ..]).to_owned();
+        let rd2d: Array2<f64> = rc.slice(s![0, .., ..]).to_owned();
 
         (rd2d, ny, nx)
     }
