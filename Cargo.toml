@@ -51,11 +51,11 @@ path = "src/main.rs"
 
 [[bin]]
 name = "plot_sampling"
-path = "src/plot_sampling.rs"
+path = "src/bin/plot_sampling.rs"
 
 [[bin]]
 name = "plot_fft"
-path = "src/plot_fft.rs"
+path = "src/bin/plot_fft.rs"
 
 [[bin]]
 name = "plot_range_doppler"
