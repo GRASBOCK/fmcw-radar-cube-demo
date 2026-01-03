@@ -111,17 +111,17 @@ fn obj_to_data(radar: &Radar, obj: &Object) -> Array3<Complex64> {
     println!("{:?} beat: {}", obj, fb);
     let sample_count = radar.sample_count_chirp();
     let mut data = Array3::<Complex64>::zeros((radar.receivers, radar.chirp_count, sample_count));
+    let wavelength = radar.c / radar.carrier_frequency;
+    let phase_shift_due_to_antenna_array =
+        2.0 * std::f64::consts::PI * radar.receiver_spacing * obj.angle.sin() / wavelength;
+    let time_shift = 2.0 * obj.velocity * radar.chirp_duration / radar.c;
+    let phase_shift_due_to_velocity =
+        -2.0 * std::f64::consts::PI * radar.carrier_frequency * time_shift;
     for r in 0..radar.receivers {
         for c in 0..radar.chirp_count {
-            let time_shift = 2.0 * obj.velocity * radar.chirp_duration / radar.c;
-            let phase_shift_due_to_velocity =
-                -2.0 * std::f64::consts::PI * radar.carrier_frequency * time_shift;
-            let wavelength = radar.c / radar.carrier_frequency;
-            let phase_shift_due_to_antenna_array =
-                2.0 * std::f64::consts::PI * radar.receiver_spacing * obj.angle.sin() / wavelength;
             let phase = phase_shift_due_to_velocity * c as f64
                 + r as f64 * phase_shift_due_to_antenna_array;
-            let v = sample_signal(fb, phase, sample_count, 1.0 / radar.carrier_frequency);
+            let v = sample_signal(fb, phase, sample_count, 1.0 / radar.chirp_duration);
             data.slice_mut(s![r, c, ..]).assign(&v);
         }
     }
