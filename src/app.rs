@@ -150,7 +150,7 @@ impl eframe::App for App {
             ui.heading("Radar parameters");
 
             ui.add(
-                egui::Slider::new(&mut self.sampling_frequency, 0.2e6..=10e6)
+                egui::Slider::new(&mut self.sampling_frequency, 0.2e6..=3.5e6)
                     .text("Sampling frequency (Hz)"),
             );
             ui.add(egui::Slider::new(&mut self.bandwidth, 0.1e9..=8e9).text("Bandwidth (Hz)"));
