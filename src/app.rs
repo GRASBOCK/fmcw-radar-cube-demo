@@ -1,10 +1,9 @@
 use crate::radar::{Object, Radar, scene_to_data};
+use egui::vec2;
+use egui_plot::{Arrows, Legend, Plot, PlotImage, PlotPoint, PlotPoints};
 use ndarray::{Array2, Array3, s};
 use rustfft::num_complex::Complex64;
 
-/// Range-Angle heatmap viewer (multi receiver; uses `Radar::radar_cube` which already includes angle FFT).
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct App {
     // Radar setup:
     carrier_frequency: f64,
@@ -17,14 +16,8 @@ pub struct App {
     receivers: usize,
     receiver_spacing: f64,
 
-    // Scene (two objects):
-    obj1_range: f64,
-    obj1_velocity: f64,
-    obj1_angle_deg: f64,
-
-    obj2_range: f64,
-    obj2_velocity: f64,
-    obj2_angle_deg: f64,
+    // Scene:
+    objects: Vec<Object>,
 }
 
 impl Default for App {
@@ -40,24 +33,25 @@ impl Default for App {
             receivers: 10,
             receiver_spacing: (299_792_458.0 / 77e9) / 2.0,
 
-            obj1_range: 20.0,
-            obj1_velocity: 10.0,
-            obj1_angle_deg: -15.0,
-
-            obj2_range: 35.0,
-            obj2_velocity: -8.0,
-            obj2_angle_deg: 25.0,
+            objects: vec![
+                Object {
+                    angle: -15.0,
+                    range: 20.0,
+                    velocity: 10.0,
+                },
+                Object {
+                    angle: 25.0,
+                    range: 35.0,
+                    velocity: -8.0,
+                },
+            ],
         }
     }
 }
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        if let Some(storage) = cc.storage {
-            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
-        } else {
-            Default::default()
-        }
+        Default::default()
     }
 
     fn radar(&self) -> Radar {
@@ -73,25 +67,18 @@ impl App {
         }
     }
 
-    fn scene(&self) -> Vec<Object> {
-        vec![
-            Object {
-                angle: self.obj1_angle_deg.to_radians(),
-                velocity: self.obj1_velocity,
-                range: self.obj1_range,
-            },
-            Object {
-                angle: self.obj2_angle_deg.to_radians(),
-                velocity: self.obj2_velocity,
-                range: self.obj2_range,
-            },
-        ]
-    }
-
     /// Returns Range-Angle map as (`angle_bins=nz`, `range_bins=nx`).
     fn range_angle_map(&self) -> (Array2<f64>, Radar, usize, usize, usize) {
         let radar = self.radar();
-        let objects = self.scene();
+        let objects: Vec<Object> = self
+            .objects
+            .iter()
+            .map(|obj| Object {
+                angle: obj.angle.to_radians(),
+                velocity: obj.velocity,
+                range: obj.range,
+            })
+            .collect();
 
         // Raw data: (receivers=nz, chirps=ny, samples=nx)
         let data: Array3<Complex64> = scene_to_data(&radar, &objects);
@@ -126,9 +113,7 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
-    }
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -165,80 +150,100 @@ impl eframe::App for App {
                 egui::Slider::new(&mut self.receiver_spacing, 0.0..=wavelength / 2.0)
                     .text("Receiver spacing (m)"),
             );
+            ui.separator();
+            ui.heading("Objects");
+            for (i, obj) in self.objects.iter_mut().enumerate() {
+                ui.label(format!("Object {}", i + 1));
+                ui.add(egui::Slider::new(&mut obj.range, 1.0..=200.0).text("Range (m)"));
+                ui.add(egui::Slider::new(&mut obj.velocity, -20.0..=20.0).text("Velocity (m/s)"));
+                ui.add(egui::Slider::new(&mut obj.angle, -80.0..=80.0).text("Angle (deg)"));
+            }
         });
 
+        // Build map first so we know ny for the slider max
+        let (ra2d, radar, nz, ny, nx) = self.range_angle_map();
+
+        fn clamp01(x: f64) -> f32 {
+            if x <= 0.0 {
+                0.0
+            } else if x >= 1.0 {
+                1.0
+            } else {
+                x as f32
+            }
+        }
+
+        fn colormap_turbo_like(t: f32) -> egui::Color32 {
+            let t = t.clamp(0.0, 1.0);
+            let r = (0.10 + 1.25 * t - 0.35 * t * t).clamp(0.0, 1.0);
+            let g = (0.05 + 1.60 * t - 1.10 * t * t + 0.35 * t * t * t).clamp(0.0, 1.0);
+            let b = (0.30 + 1.10 * t - 1.50 * t * t + 0.90 * t * t * t).clamp(0.0, 1.0);
+            egui::Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
+        }
+
+        let (min_v, max_v) = {
+            let max_v = ra2d
+                .iter()
+                .fold(f64::NEG_INFINITY, |acc, &v| if v > acc { v } else { acc })
+                .max(0.0);
+            (0.0, max_v)
+        };
+        let denom = (max_v - min_v).max(1e-12);
+
+        // Image dims: width = range bins (x), height = angle bins (y)
+        let mut img = egui::ColorImage::new([nx, nz], vec![egui::Color32::BLACK; nx * nz]);
+        for a in 0..nz {
+            for r in 0..nx {
+                let v = ra2d[(a, r)];
+                let t = (v - min_v) / denom;
+                img.pixels[(nz - a - 1) * nx + r] = colormap_turbo_like(clamp01(t));
+            }
+        }
+
+        let max_range = radar.max_range();
+        let max_angle = radar.max_angle();
+        let max_angle_deg = max_angle.to_degrees();
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Range–Angle heatmap (slice cube on Doppler)");
 
-
-
-            ui.heading("Objects");
-            ui.label("Object 1");
-            ui.add(egui::Slider::new(&mut self.obj1_range, 1.0..=200.0).text("Range (m)"));
-            ui.add(egui::Slider::new(&mut self.obj1_velocity, -80.0..=80.0).text("Velocity (m/s)"));
-            ui.add(egui::Slider::new(&mut self.obj1_angle_deg, -80.0..=80.0).text("Angle (deg)"));
-
-            ui.label("Object 2");
-            ui.add(egui::Slider::new(&mut self.obj2_range, 1.0..=200.0).text("Range (m)"));
-            ui.add(egui::Slider::new(&mut self.obj2_velocity, -80.0..=80.0).text("Velocity (m/s)"));
-            ui.add(egui::Slider::new(&mut self.obj2_angle_deg, -80.0..=80.0).text("Angle (deg)"));
-
-            ui.separator();
-
-            // Build map first so we know ny for the slider max
-            let (ra2d, radar, nz, ny, nx) = self.range_angle_map();
-
-            fn clamp01(x: f64) -> f32 {
-                if x <= 0.0 {
-                    0.0
-                } else if x >= 1.0 {
-                    1.0
-                } else {
-                    x as f32
-                }
-            }
-
-            fn colormap_turbo_like(t: f32) -> egui::Color32 {
-                let t = t.clamp(0.0, 1.0);
-                let r = (0.10 + 1.25 * t - 0.35 * t * t).clamp(0.0, 1.0);
-                let g = (0.05 + 1.60 * t - 1.10 * t * t + 0.35 * t * t * t).clamp(0.0, 1.0);
-                let b = (0.30 + 1.10 * t - 1.50 * t * t + 0.90 * t * t * t).clamp(0.0, 1.0);
-                egui::Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
-            }
-
-            let (min_v, max_v) = {
-                let max_v = ra2d
-                    .iter()
-                    .fold(f64::NEG_INFINITY, |acc, &v| if v > acc { v } else { acc })
-                    .max(0.0);
-                (0.0, max_v)
-            };
-            let denom = (max_v - min_v).max(1e-12);
-
-            // Image dims: width = range bins (x), height = angle bins (y)
-            let mut img = egui::ColorImage::new([nx, nz], vec![egui::Color32::BLACK; nx * nz]);
-            for a in 0..nz {
-                for r in 0..nx {
-                    let v = ra2d[(a, r)];
-                    let t = (v - min_v) / denom;
-                    img.pixels[a * nx + r] = colormap_turbo_like(clamp01(t));
-                }
-            }
-
-            let texture = ui.ctx().load_texture(
+            let texture =
+                ui.ctx()
+                    .load_texture("range_angle_texture", img, egui::TextureOptions::NEAREST);
+            let image = PlotImage::new(
                 "range_angle_texture",
-                img,
-                egui::TextureOptions::NEAREST,
+                &texture,
+                PlotPoint::new(max_range/2.0, 0.0),
+                vec2(max_range as f32, (max_angle_deg*2.0) as f32),
             );
 
-            let max_range_m = radar.max_range();
+            let arrows = {
+                let arrow_origins = PlotPoints::from_iter(self.objects.iter().map(|obj| [obj.range, obj.angle]));
+                let arrow_tips = PlotPoints::from_iter(self.objects.iter().map(|obj| [obj.range-obj.velocity, obj.angle]));
+
+                Arrows::new("arrows", arrow_origins, arrow_tips)
+            };
+            let plot = Plot::new("items_demo")
+                        .legend(
+                            Legend::default()
+                                .position(egui_plot::Corner::RightBottom)
+                                .title("Items"),
+                        )
+                        .show_x(false)
+                        .show_y(false)
+                        .default_x_bounds(-20.0, 220.0)
+                        .default_y_bounds(-90.0, 90.0)
+                        .view_aspect(2.0);
+            plot.show(ui, |plot_ui| {
+                plot_ui.image(image.name("Image"));
+                plot_ui.arrows(arrows.name("Arrows"));
+            });
 
             // We don't have a physical bin->angle calibration here; label bins roughly [-90,+90].
             let angle_min = -90.0;
             let angle_max = 90.0;
 
             ui.label(format!(
-                "Range–Angle map. cube shape (angle, doppler, range)=({nz}, {ny}, {nx}). Max range ≈ {max_range_m:.1} m"
+                "Range–Angle map. cube shape (angle, doppler, range)=({nz}, {ny}, {nx}). Max range ≈ {max_range:.1} m"
             ));
 
             let available = ui.available_size();
@@ -250,30 +255,18 @@ impl eframe::App for App {
                 ui.label("Range (m):");
                 ui.label("0");
                 ui.add_space(8.0);
-                ui.label(format!("{max_range_m:.2}"));
-            });
+                ui.label(format!("{max_range:.2}"));
+                ui.add_space(8.0);
+                ui.label(format!("{max_angle_deg:.2}°"));
 
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    ui.label("Angle (deg)");
-                    let ticks = [0.0, 0.25, 0.5, 0.75, 1.0];
-                    for t in ticks {
-                        let ang = angle_max - t * (angle_max - angle_min);
-                        ui.label(format!("{ang:.0}"));
-                        ui.add_space((desired_h / (ticks.len().saturating_sub(1) as f32)).max(0.0));
-                    }
-                });
-
-                ui.add(egui::Image::from_texture(&texture).fit_to_exact_size(egui::vec2(
-                    desired_w,
-                    desired_h,
-                )));
             });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 powered_by_egui_and_eframe(ui);
                 egui::warn_if_debug_build(ui);
             });
+
+
         });
     }
 }
