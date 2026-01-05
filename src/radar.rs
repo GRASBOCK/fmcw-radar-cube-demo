@@ -58,6 +58,31 @@ impl Radar {
         (self.sampling_frequency * self.chirp_duration) as usize
     }
 
+    fn nx(&self) -> usize {
+        self.sample_count_chirp()
+    }
+
+    fn ny(&self) -> usize {
+        self.chirp_count
+    }
+    fn nz(&self) -> usize {
+        self.receivers
+    }
+
+    pub fn coord_to_rda(&self, zyx: &(usize, usize, usize)) -> (f64, f64, f64) {
+        let angle_shifted = (zyx.0 + self.nz() / 2) % self.nz();
+        let max_angle = self.max_angle();
+        let angle = (angle_shifted as f64 / self.nz() as f64 * (max_angle * 2.0) - max_angle)
+            .asin()
+            .to_degrees()
+            / 2.0;
+        let velocity_shifted = (zyx.1 + 1 + self.ny() / 2) % self.ny();
+        let max_vel = self.max_velocity();
+        let velocity = -(velocity_shifted as f64 / self.ny() as f64 * (max_vel * 2.0) - max_vel);
+        let range = zyx.2 as f64 * self.max_range() / self.nx() as f64;
+        (angle, velocity, range)
+    }
+
     pub fn radar_cube(&self, data: &Array3<Complex64>) -> Array3<f64> {
         let nx = self.sample_count_chirp();
         let ny = self.chirp_count;
@@ -145,16 +170,46 @@ pub fn scene_to_data(radar: &Radar, objects: &Vec<Object>) -> Array3<Complex64> 
     data
 }
 
-fn detections(array: &Array3<f64>) -> Vec<(f64, f64, f64)> {
+pub fn detect(array: &Array3<f64>) -> Vec<(usize, usize, usize)> {
     let threshold = 1e4;
+    let kernel_size = 5;
+    let k2 = kernel_size / 2;
     let mut indices = Vec::new();
+
+    // Local maximum filter (3D sliding window) + thresholding.
+    // Keep only samples that are the strict maximum within a kernel_size^3 neighborhood.
+    let (nz, ny, nx) = array.dim();
+
     for ((i, j, k), &val) in array.indexed_iter() {
-        if val > threshold {
+        if val <= threshold {
+            continue;
+        }
+
+        let i0 = i.saturating_sub(k2);
+        let i1 = (i + k2).min(nz.saturating_sub(1));
+        let j0 = j.saturating_sub(k2);
+        let j1 = (j + k2).min(ny.saturating_sub(1));
+        let k0 = k.saturating_sub(k2);
+        let k1 = (k + k2).min(nx.saturating_sub(1));
+
+        let mut is_local_max = true;
+        'neigh: for ii in i0..=i1 {
+            for jj in j0..=j1 {
+                for kk in k0..=k1 {
+                    if (ii, jj, kk) != (i, j, k) && array[(ii, jj, kk)] >= val {
+                        is_local_max = false;
+                        break 'neigh;
+                    }
+                }
+            }
+        }
+
+        if is_local_max {
             indices.push((i, j, k));
         }
     }
-    println!("{indices:?}");
-    vec![(0.0, 0.0, 0.0); 2]
+
+    indices
 }
 
 #[cfg(test)]
@@ -221,13 +276,13 @@ mod tests {
         };
         let data = scene_to_data(&radar, &vec![obj1.clone(), obj2.clone()]);
         let output = Radar::radar_cube(&radar, &data);
-        let detections = detections(&output);
+        let detections = detect(&output);
         assert_eq!(detections.len(), 2);
         let expected = vec![
             (obj1.angle, obj1.velocity, obj1.range),
             (obj2.angle, obj2.velocity, obj2.range),
         ];
-        for (det, exp) in detections.iter().zip(expected.iter()) {
+        for (det, exp) in detect.iter().zip(expected.iter()) {
             let (det_angle, det_velocity, det_range) = det;
             let (exp_angle, exp_velocity, exp_range) = exp;
             // Allow some tolerance for floating point comparison

@@ -1,6 +1,6 @@
-use crate::radar::{Object, Radar, scene_to_data};
+use crate::radar::{Object, Radar, detect, scene_to_data};
 use egui::vec2;
-use egui_plot::{Arrows, Legend, Plot, PlotImage, PlotPoint, PlotPoints};
+use egui_plot::{Arrows, Legend, Plot, PlotImage, PlotPoint, PlotPoints, Points};
 use ndarray::{Array2, Array3, s};
 use rustfft::num_complex::Complex64;
 
@@ -22,16 +22,18 @@ pub struct App {
 
 impl Default for App {
     fn default() -> Self {
+        let c = 299_792_458.0;
+        let cf = 77e9;
         Self {
-            carrier_frequency: 77e9,
-            c: 299_792_458.0,
+            carrier_frequency: cf,
+            c: c,
             sampling_frequency: 2e6,
-            bandwidth: 1.6e9,
-            chirp_duration: 40e-6,
-            chirp_count: 64,
+            bandwidth: 260e6,
+            chirp_duration: 87e-6,
+            chirp_count: 5,
 
-            receivers: 10,
-            receiver_spacing: (299_792_458.0 / 77e9) / 2.0,
+            receivers: 32,
+            receiver_spacing: (c / cf) / 2.0,
 
             objects: vec![
                 Object {
@@ -67,8 +69,7 @@ impl App {
         }
     }
 
-    /// Returns Range-Angle map as (`angle_bins=nz`, `range_bins=nx`).
-    fn range_angle_map(&self) -> (Array2<f64>, Radar, usize, usize, usize) {
+    fn cube_mag(&self) -> (Array3<f64>, Radar, usize, usize, usize) {
         let radar = self.radar();
         let objects: Vec<Object> = self
             .objects
@@ -90,25 +91,7 @@ impl App {
         // radar_cube already does Range FFT, Doppler FFT, Angle FFT and returns magnitude:
         // shape (nz, ny, nx)
         let cube_mag = radar.radar_cube(&data);
-
-        let doppler_bin = 20.min(ny.saturating_sub(1));
-
-        // Range-Angle slice: (nz, nx) = take doppler bin
-        let mut ra2d = cube_mag.slice(s![.., doppler_bin, ..]).to_owned();
-
-        // fftshift along "angle bins" axis so broadside-ish energy is centered.
-        // new[a, r] = old[(a + nz/2) % nz, r]
-        let shift = nz / 2;
-        let mut shifted = Array2::<f64>::zeros((nz, nx));
-        for a in 0..nz {
-            let src_a = (a + shift) % nz;
-            for r in 0..nx {
-                shifted[(a, r)] = ra2d[(src_a, r)];
-            }
-        }
-        ra2d = shifted;
-
-        (ra2d, radar, nz, ny, nx)
+        (cube_mag, radar, nz, ny, nx)
     }
 }
 
@@ -133,14 +116,18 @@ impl eframe::App for App {
         let wavelength = self.radar().wavelength();
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.heading("Radar parameters");
+            ui.label(format!(
+                "carrier frequency: {:.1} GHz",
+                self.radar().carrier_frequency / 1E9
+            ));
 
             ui.add(
                 egui::Slider::new(&mut self.sampling_frequency, 0.2e6..=3.5e6)
                     .text("Sampling frequency (Hz)"),
             );
-            ui.add(egui::Slider::new(&mut self.bandwidth, 0.1e9..=8e9).text("Bandwidth (Hz)"));
+            ui.add(egui::Slider::new(&mut self.bandwidth, 0.1e9..=1e9).text("Bandwidth (Hz)"));
             ui.add(
-                egui::Slider::new(&mut self.chirp_duration, 1e-6..=100e-6)
+                egui::Slider::new(&mut self.chirp_duration, 1e-6..=200e-6)
                     .text("Chirp duration (s)"),
             );
             ui.add(egui::Slider::new(&mut self.chirp_count, 4..=256).text("Chirp count"));
@@ -154,14 +141,31 @@ impl eframe::App for App {
             ui.heading("Objects");
             for (i, obj) in self.objects.iter_mut().enumerate() {
                 ui.label(format!("Object {}", i + 1));
-                ui.add(egui::Slider::new(&mut obj.range, 1.0..=200.0).text("Range (m)"));
+                ui.add(egui::Slider::new(&mut obj.range, 1.0..=100.0).text("Range (m)"));
                 ui.add(egui::Slider::new(&mut obj.velocity, -20.0..=20.0).text("Velocity (m/s)"));
                 ui.add(egui::Slider::new(&mut obj.angle, -80.0..=80.0).text("Angle (deg)"));
             }
         });
 
         // Build map first so we know ny for the slider max
-        let (ra2d, radar, nz, ny, nx) = self.range_angle_map();
+        let (fft_cube, radar, nz, ny, nx) = self.cube_mag();
+
+        let doppler_bin = 20.min(ny.saturating_sub(1));
+
+        // Range-Angle slice: (nz, nx) = take doppler bin
+        let mut ra2d = fft_cube.slice(s![.., doppler_bin, ..]).to_owned();
+
+        // fftshift along "angle bins" axis so broadside-ish energy is centered.
+        // new[a, r] = old[(a + nz/2) % nz, r]
+        let shift = nz / 2;
+        let mut shifted = Array2::<f64>::zeros((nz, nx));
+        for a in 0..nz {
+            let src_a = (a + shift) % nz;
+            for r in 0..nx {
+                shifted[(a, r)] = ra2d[(src_a, r)];
+            }
+        }
+        ra2d = shifted;
 
         fn clamp01(x: f64) -> f32 {
             if x <= 0.0 {
@@ -202,7 +206,11 @@ impl eframe::App for App {
 
         let max_range = radar.max_range();
         let max_angle = radar.max_angle();
+        let max_velocity = radar.max_velocity();
         let max_angle_deg = max_angle.to_degrees();
+
+        let detections = detect(&fft_cube);
+
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Range–Angle heatmap (slice cube on Doppler)");
 
@@ -216,12 +224,30 @@ impl eframe::App for App {
                 vec2(max_range as f32, (max_angle_deg*2.0) as f32),
             );
 
-            let arrows = {
+            let true_velocity_arrows = {
                 let arrow_origins = PlotPoints::from_iter(self.objects.iter().map(|obj| [obj.range, obj.angle]));
                 let arrow_tips = PlotPoints::from_iter(self.objects.iter().map(|obj| [obj.range-obj.velocity, obj.angle]));
 
                 Arrows::new("arrows", arrow_origins, arrow_tips)
             };
+
+            let detections = detections.iter().map(|d|{
+                let d = radar.coord_to_rda(d);
+                println!("detection: {:.2}°, {:.2} m, {:.2} m/s", d.0, d.2, d.1);
+                [d.0, d.1, d.2]
+            }).collect::<Vec<[f64; 3]>>();
+
+            let detection_points = PlotPoints::from_iter(detections.iter().map(|d|{
+                [d[2], d[0]]
+            }));
+
+            let detection_velocity_arrows = {
+                let arrow_origins = PlotPoints::from_iter(detections.iter().map(|d| [d[2], d[0]]));
+                let arrow_tips = PlotPoints::from_iter(detections.iter().map(|d| [d[2]-d[1], d[0]]));
+
+                Arrows::new("arrows", arrow_origins, arrow_tips)
+            };
+
             let plot = Plot::new("items_demo")
                         .legend(
                             Legend::default()
@@ -230,12 +256,14 @@ impl eframe::App for App {
                         )
                         .show_x(false)
                         .show_y(false)
-                        .default_x_bounds(-20.0, 220.0)
+                        .default_x_bounds(-20.0, 120.0)
                         .default_y_bounds(-90.0, 90.0)
                         .view_aspect(2.0);
             plot.show(ui, |plot_ui| {
                 plot_ui.image(image.name("Image"));
-                plot_ui.arrows(arrows.name("Arrows"));
+                plot_ui.arrows(true_velocity_arrows.name("Actual Velocity"));
+                plot_ui.arrows(detection_velocity_arrows.name("Detected Velocity"));
+                plot_ui.points(Points::new("Detections", detection_points).radius(3.0));
             });
 
             // We don't have a physical bin->angle calibration here; label bins roughly [-90,+90].
@@ -255,10 +283,11 @@ impl eframe::App for App {
                 ui.label("Range (m):");
                 ui.label("0");
                 ui.add_space(8.0);
-                ui.label(format!("{max_range:.2}"));
+                ui.label(format!("{max_range:.2} m"));
                 ui.add_space(8.0);
                 ui.label(format!("{max_angle_deg:.2}°"));
-
+                ui.add_space(8.0);
+                ui.label(format!("{max_velocity:.2} m/s"));
             });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
