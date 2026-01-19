@@ -26,7 +26,7 @@ impl Default for App {
         let cf = 77e9;
         Self {
             carrier_frequency: cf,
-            c: c,
+            c,
             sampling_frequency: 2e6,
             bandwidth: 260e6,
             chirp_duration: 87e-6,
