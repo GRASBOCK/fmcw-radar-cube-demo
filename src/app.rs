@@ -52,7 +52,7 @@ impl Default for App {
 }
 
 impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         Default::default()
     }
 
@@ -96,7 +96,7 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {}
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -266,28 +266,16 @@ impl eframe::App for App {
                 plot_ui.points(Points::new("Detections", detection_points).radius(3.0));
             });
 
-            // We don't have a physical bin->angle calibration here; label bins roughly [-90,+90].
-            let angle_min = -90.0;
-            let angle_max = 90.0;
-
             ui.label(format!(
                 "Range–Angle map. cube shape (angle, doppler, range)=({nz}, {ny}, {nx}). Max range ≈ {max_range:.1} m"
             ));
 
-            let available = ui.available_size();
-            let aspect = nz as f32 / nx as f32;
-            let desired_w = available.x.max(1.0);
-            let desired_h = (desired_w * aspect).min(available.y.max(1.0));
-
             ui.horizontal(|ui| {
-                ui.label("Range (m):");
-                ui.label("0");
+                ui.label(format!("Max Range: {max_range:.2} m"));
                 ui.add_space(8.0);
-                ui.label(format!("{max_range:.2} m"));
+                ui.label(format!("Max Angle: {max_angle_deg:.2}°"));
                 ui.add_space(8.0);
-                ui.label(format!("{max_angle_deg:.2}°"));
-                ui.add_space(8.0);
-                ui.label(format!("{max_velocity:.2} m/s"));
+                ui.label(format!("Max Velocity: {max_velocity:.2} m/s"));
             });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
