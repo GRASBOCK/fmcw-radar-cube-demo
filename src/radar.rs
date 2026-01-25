@@ -282,7 +282,7 @@ mod tests {
             (obj1.angle, obj1.velocity, obj1.range),
             (obj2.angle, obj2.velocity, obj2.range),
         ];
-        for (det, exp) in detect.iter().zip(expected.iter()) {
+        for (det, exp) in detections.iter().zip(expected.iter()) {
             let (det_angle, det_velocity, det_range) = det;
             let (exp_angle, exp_velocity, exp_range) = exp;
             // Allow some tolerance for floating point comparison
