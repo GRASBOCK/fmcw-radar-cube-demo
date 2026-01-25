@@ -6,6 +6,11 @@ edition = "2024"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
 rust-version = "1.88"
 
+[features]
+# keep default empty so wasm builds stay minimal/clean
+default = []
+prototypes = []
+
 [package.metadata.docs.rs]
 all-features = true
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
@@ -52,14 +57,17 @@ path = "src/main.rs"
 [[bin]]
 name = "plot_sampling"
 path = "src/bin/plot_sampling.rs"
+required-features = ["prototypes"]
 
 [[bin]]
 name = "plot_fft"
 path = "src/bin/plot_fft.rs"
+required-features = ["prototypes"]
 
 [[bin]]
 name = "plot_range_doppler"
 path = "src/bin/plot_range_doppler.rs"
+required-features = ["prototypes"]
 
 [patch.crates-io]
 

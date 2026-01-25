@@ -50,7 +50,7 @@ fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(fmcw_radar_cube_demo::TemplateApp::new(cc)))),
+                Box::new(|cc| Ok(Box::new(fmcw_radar_cube_demo::App::new(cc)))),
             )
             .await;
 
