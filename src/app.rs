@@ -27,24 +27,24 @@ impl Default for App {
         Self {
             carrier_frequency: cf,
             c,
-            sampling_frequency: 2e6,
-            bandwidth: 260e6,
-            chirp_duration: 87e-6,
-            chirp_count: 5,
+            sampling_frequency: 2.4e6,
+            bandwidth: 320e6,
+            chirp_duration: 90e-6,
+            chirp_count: 64,
 
-            receivers: 32,
+            receivers: 36,
             receiver_spacing: (c / cf) / 2.0,
 
             objects: vec![
                 Object {
-                    angle: -15.0,
-                    range: 20.0,
-                    velocity: 10.0,
+                    angle: -10.0,
+                    range: 69.0,
+                    velocity: 8.0,
                 },
                 Object {
-                    angle: 25.0,
-                    range: 35.0,
-                    velocity: -8.0,
+                    angle: 38.0,
+                    range: 27.0,
+                    velocity: -2.5,
                 },
             ],
         }
@@ -233,17 +233,17 @@ impl eframe::App for App {
 
             let detections = detections.iter().map(|d|{
                 let d = radar.coord_to_rda(d);
-                println!("detection: {:.2}°, {:.2} m, {:.2} m/s", d.0, d.2, d.1);
+                println!("detection: {:.2} m, {:.2} m/s, {:.2}°", d.0, d.1, d.2);
                 [d.0, d.1, d.2]
             }).collect::<Vec<[f64; 3]>>();
 
             let detection_points = PlotPoints::from_iter(detections.iter().map(|d|{
-                [d[2], d[0]]
+                [d[0], d[2]]
             }));
 
             let detection_velocity_arrows = {
-                let arrow_origins = PlotPoints::from_iter(detections.iter().map(|d| [d[2], d[0]]));
-                let arrow_tips = PlotPoints::from_iter(detections.iter().map(|d| [d[2]-d[1], d[0]]));
+                let arrow_origins = PlotPoints::from_iter(detections.iter().map(|d| [d[0], d[2]]));
+                let arrow_tips = PlotPoints::from_iter(detections.iter().map(|d| [d[0]-d[1], d[2]]));
 
                 Arrows::new("arrows", arrow_origins, arrow_tips)
             };

@@ -42,6 +42,14 @@ impl Radar {
         self.c / 2.0 / self.bandwidth
     }
 
+    pub fn velocity_resolution(&self) -> f64 {
+        self.wavelength() / (2.0 * self.frame_time())
+    }
+
+    pub fn angular_resolution(&self, angle_rad: f64) -> f64 {
+        self.wavelength() / (self.receivers as f64 * self.receiver_spacing * angle_rad.cos())
+    }
+
     pub fn max_velocity(&self) -> f64 {
         self.wavelength() / (4.0 * self.chirp_duration)
     }
@@ -80,7 +88,7 @@ impl Radar {
         let max_vel = self.max_velocity();
         let velocity = -(velocity_shifted as f64 / self.ny() as f64 * (max_vel * 2.0) - max_vel);
         let range = zyx.2 as f64 * self.max_range() / self.nx() as f64;
-        (angle, velocity, range)
+        (range, velocity, angle)
     }
 
     pub fn radar_cube(&self, data: &Array3<Complex64>) -> Array3<f64> {
@@ -171,8 +179,8 @@ pub fn scene_to_data(radar: &Radar, objects: &Vec<Object>) -> Array3<Complex64> 
 }
 
 pub fn detect(array: &Array3<f64>) -> Vec<(usize, usize, usize)> {
-    let threshold = 1e4;
-    let kernel_size = 5;
+    let threshold = 3e4;
+    let kernel_size = 9;
     let k2 = kernel_size / 2;
     let mut indices = Vec::new();
 
@@ -254,55 +262,74 @@ mod tests {
 
     #[test]
     fn test_all_in_one() {
+        let c = 299_792_458.0;
+        let cf = 77e9;
         let radar = Radar {
-            carrier_frequency: 77e9,
-            c: 300000.0,
-            sampling_frequency: 2e6,
-            chirp_duration: 1e-3,
-            bandwidth: 4e9,
-            chirp_count: 8,
-            receivers: 4,
-            receiver_spacing: 0.1,
+            carrier_frequency: cf,
+            c: c,
+            sampling_frequency: 2.4e6,
+            bandwidth: 320e6,
+            chirp_duration: 90e-6,
+            chirp_count: 64,
+            receivers: 36,
+            receiver_spacing: (c / cf) / 2.0,
         };
         let obj1 = Object {
-            angle: 0.0,
-            velocity: 0.0,
-            range: 10.0,
+            angle: 38.0,
+            range: 27.0,
+            velocity: -2.5,
         };
         let obj2 = Object {
-            angle: -4.0,
-            velocity: 20.0,
-            range: 40.0,
+            angle: -10.0,
+            range: 69.0,
+            velocity: 8.0,
         };
         let data = scene_to_data(&radar, &vec![obj1.clone(), obj2.clone()]);
         let output = Radar::radar_cube(&radar, &data);
-        let detections = detect(&output);
-        assert_eq!(detections.len(), 2);
+        let detection_coords = detect(&output);
+        assert_eq!(detection_coords.len(), 2);
+        let detections: Vec<(f64, f64, f64)> = detection_coords
+            .iter()
+            .map(|coord| radar.coord_to_rda(&coord))
+            .collect();
+
         let expected = vec![
-            (obj1.angle, obj1.velocity, obj1.range),
-            (obj2.angle, obj2.velocity, obj2.range),
+            (obj1.range, obj1.velocity, obj1.angle),
+            (obj2.range, obj2.velocity, obj2.angle),
         ];
+
+        dbg!(&expected, &detections);
+
+        // Sort detections by range (ascending) to match expected ordering.
+        let mut detections = detections;
+        detections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
         for (det, exp) in detections.iter().zip(expected.iter()) {
-            let (det_angle, det_velocity, det_range) = det;
-            let (exp_angle, exp_velocity, exp_range) = exp;
-            // Allow some tolerance for floating point comparison
+            let (det_range, det_velocity, det_angle) = det;
+            let (exp_range, exp_velocity, exp_angle) = exp;
+            let range_tolerance = radar.range_resolution() * 3.0;
             assert!(
-                (det_angle - exp_angle).abs() < 1e-2,
-                "Angle mismatch: detected {}, expected {}",
-                det_angle,
-                exp_angle
-            );
-            assert!(
-                (det_velocity - exp_velocity).abs() < 1e-2,
-                "Velocity mismatch: detected {}, expected {}",
-                det_velocity,
-                exp_velocity
-            );
-            assert!(
-                (det_range - exp_range).abs() < 1e-2,
-                "Range mismatch: detected {}, expected {}",
+                (det_range - exp_range).abs() < range_tolerance,
+                "Range mismatch: detected {:.3} m, expected {:.3} m; tolerance {:.3} m",
                 det_range,
-                exp_range
+                exp_range,
+                range_tolerance
+            );
+            let angle_tolerance = radar.angular_resolution(*exp_angle / 180.0 * PI) / PI * 180.0;
+            assert!(
+                (det_angle - exp_angle).abs() < angle_tolerance,
+                "Angle mismatch: detected {:.3}°, expected {:.3}°; tolerance {:.3}°",
+                det_angle,
+                exp_angle,
+                angle_tolerance
+            );
+            let velocity_tolerance = radar.velocity_resolution() * 3.0;
+            assert!(
+                (det_velocity - exp_velocity).abs() < velocity_tolerance,
+                "Velocity mismatch: detected {:.3} m/s, expected {:.3} m/s; tolerance {:.3} m/s",
+                det_velocity,
+                exp_velocity,
+                velocity_tolerance
             );
         }
     }
