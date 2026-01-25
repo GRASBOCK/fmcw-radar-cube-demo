@@ -248,8 +248,7 @@ impl eframe::App for App {
                     let v = rd_display[(y, x)];
                     let t = (v - min_v) / denom;
                     let t = clamp01(t);
-                    let pixel = img.pixels.get_mut(y * nx + x).unwrap();
-                    *pixel = colormap_turbo_like(t);
+                    img.pixels[y * nx + x] = colormap_turbo_like(t);
                 }
             }
 
@@ -371,8 +370,7 @@ impl eframe::App for App {
                         let v = sig2d[(y, x)];
                         let t = (v - min_v) / denom;
                         let t = clamp01(t);
-                        let pixel = img.pixels.get_mut(y * nx + x).unwrap();
-                        *pixel = colormap_turbo_like(t);
+                        img.pixels[y * nx + x] = colormap_turbo_like(t);
                     }
                 }
 
