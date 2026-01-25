@@ -95,7 +95,7 @@ impl App {
         let ny = radar.chirp_count;
         let nz = radar.receivers;
 
-        debug_assert_eq!(nz, 1);
+        debug_assert_eq!(nz, 1, "expected a single receiver (nz == 1)");
 
         let rc = radar.radar_cube(&data);
 
