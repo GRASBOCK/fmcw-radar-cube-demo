@@ -77,7 +77,7 @@ impl eframe::App for App {
                 for (line, label, color) in lines {
                     let plot_line = egui_plot::Line::new(
                         label,
-                        line.into_iter().collect::<egui_plot::PlotPoints>(),
+                        line.into_iter().collect::<egui_plot::PlotPoints<'_>>(),
                     )
                     .color(color)
                     .width(2.0)
