@@ -77,7 +77,7 @@ impl Radar {
         self.receivers
     }
 
-    pub fn coord_to_rda(&self, zyx: &(usize, usize, usize)) -> (f64, f64, f64) {
+    pub fn coord_to_adr(&self, zyx: &(usize, usize, usize)) -> (f64, f64, f64) {
         let angle_shifted = (zyx.0 + self.nz() / 2) % self.nz();
         let max_angle = self.max_angle();
         let angle = (angle_shifted as f64 / self.nz() as f64 * (max_angle * 2.0) - max_angle)
@@ -88,7 +88,7 @@ impl Radar {
         let max_vel = self.max_velocity();
         let velocity = -(velocity_shifted as f64 / self.ny() as f64 * (max_vel * 2.0) - max_vel);
         let range = zyx.2 as f64 * self.max_range() / self.nx() as f64;
-        (range, velocity, angle)
+        (angle, velocity, range)
     }
 
     pub fn radar_cube(&self, data: &Array3<Complex64>) -> Array3<f64> {
@@ -295,23 +295,23 @@ mod tests {
         assert_eq!(detection_coords.len(), 2);
         let detections: Vec<(f64, f64, f64)> = detection_coords
             .iter()
-            .map(|coord| radar.coord_to_rda(&coord))
+            .map(|coord| radar.coord_to_adr(&coord))
             .collect();
 
         let expected = vec![
-            (obj1.range, obj1.velocity, obj1.angle),
-            (obj2.range, obj2.velocity, obj2.angle),
+            (obj1.angle, obj1.velocity, obj1.range),
+            (obj2.angle, obj2.velocity, obj2.range),
         ];
 
         // Sort detections by range (ascending) to match expected ordering.
         let mut detections = detections;
-        detections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        detections.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
 
         dbg!(&expected, &detections);
 
         for (det, exp) in detections.iter().zip(expected.iter()) {
-            let (det_range, det_velocity, det_angle) = det;
-            let (exp_range, exp_velocity, exp_angle) = exp;
+            let (det_angle, det_velocity, det_range) = det;
+            let (exp_angle, exp_velocity, exp_range) = exp;
             let range_tolerance = radar.range_resolution() * 3.0;
             assert!(
                 (det_range - exp_range).abs() < range_tolerance,

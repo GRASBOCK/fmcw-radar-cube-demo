@@ -99,20 +99,6 @@ impl eframe::App for App {
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::MenuBar::new().ui(ui, |ui| {
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                    ui.add_space(16.0);
-                }
-                egui::widgets::global_theme_preference_buttons(ui);
-            });
-        });
         let wavelength = self.radar().wavelength();
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.heading("Radar parameters");
@@ -232,18 +218,18 @@ impl eframe::App for App {
             };
 
             let detections = detections.iter().map(|d|{
-                let d = radar.coord_to_rda(d);
-                println!("detection: {:.2} m, {:.2} m/s, {:.2}°", d.0, d.1, d.2);
+                let d = radar.coord_to_adr(d);
+                println!("detection: {:.2} m, {:.2} m/s, {:.2}°", d.2, d.1, d.0);
                 [d.0, d.1, d.2]
             }).collect::<Vec<[f64; 3]>>();
 
             let detection_points = PlotPoints::from_iter(detections.iter().map(|d|{
-                [d[0], d[2]]
+                [d[2], d[0]]
             }));
 
             let detection_velocity_arrows = {
-                let arrow_origins = PlotPoints::from_iter(detections.iter().map(|d| [d[0], d[2]]));
-                let arrow_tips = PlotPoints::from_iter(detections.iter().map(|d| [d[0]-d[1], d[2]]));
+                let arrow_origins = PlotPoints::from_iter(detections.iter().map(|d| [d[2], d[0]]));
+                let arrow_tips = PlotPoints::from_iter(detections.iter().map(|d| [d[2]-d[1], d[0]]));
 
                 Arrows::new("arrows", arrow_origins, arrow_tips)
             };
