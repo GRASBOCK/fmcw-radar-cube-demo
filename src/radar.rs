@@ -149,7 +149,12 @@ pub fn sample_signal(
 
 fn obj_to_data(radar: &Radar, obj: &Object) -> Array3<Complex64> {
     let fb = beat_frequency(radar, obj);
-    println!("{obj:?} beat: {fb}");
+    println!(
+        "Obj: range {:.2}m, angle {:.1}°, velocity {:.2}m/s, beat: {fb}",
+        obj.range,
+        obj.angle / std::f64::consts::PI * 180.0,
+        obj.velocity
+    );
     let sample_count = radar.sample_count_chirp();
     let mut data = Array3::<Complex64>::zeros((radar.receivers, radar.chirp_count, sample_count));
     let wavelength = radar.c / radar.carrier_frequency;
@@ -298,11 +303,11 @@ mod tests {
             (obj2.range, obj2.velocity, obj2.angle),
         ];
 
-        dbg!(&expected, &detections);
-
         // Sort detections by range (ascending) to match expected ordering.
         let mut detections = detections;
         detections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        dbg!(&expected, &detections);
 
         for (det, exp) in detections.iter().zip(expected.iter()) {
             let (det_range, det_velocity, det_angle) = det;
