@@ -327,7 +327,9 @@ mod tests {
                 exp_range,
                 range_tolerance
             );
-            let angle_tolerance = radar.angular_resolution(*exp_angle / 180.0 * PI) / PI * 180.0;
+            let angle_tolerance = radar
+                .angular_resolution((*exp_angle).to_radians())
+                .to_degrees();
             assert!(
                 (det_angle - exp_angle).abs() < angle_tolerance,
                 "Angle mismatch: detected {:.3}°, expected {:.3}°; tolerance {:.3}°",
