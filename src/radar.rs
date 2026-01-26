@@ -10,6 +10,18 @@ pub struct Object {
     pub range: f64,
 }
 
+impl std::fmt::Display for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Object {{ angle: {:.1}°, velocity: {:.2} m/s, range: {:.1} m }}",
+            self.angle.to_degrees(),
+            self.velocity,
+            self.range
+        )
+    }
+}
+
 fn beat_frequency(radar: &Radar, obj: &Object) -> f64 {
     obj.range * 2.0 * radar.chirp_rate() / radar.c
     // + TODO: doppler
@@ -149,12 +161,7 @@ pub fn sample_signal(
 
 fn obj_to_data(radar: &Radar, obj: &Object) -> Array3<Complex64> {
     let fb = beat_frequency(radar, obj);
-    println!(
-        "Obj: range {:.2}m, angle {:.1}°, velocity {:.2}m/s, beat: {fb}",
-        obj.range,
-        obj.angle / std::f64::consts::PI * 180.0,
-        obj.velocity
-    );
+    println!("{obj}, beat frequency: {fb:.1}");
     let sample_count = radar.sample_count_chirp();
     let mut data = Array3::<Complex64>::zeros((radar.receivers, radar.chirp_count, sample_count));
     let wavelength = radar.c / radar.carrier_frequency;
