@@ -27,6 +27,7 @@ fn beat_frequency(radar: &Radar, obj: &Object) -> f64 {
     // + TODO: doppler
 }
 
+#[derive(Debug)]
 pub struct Radar {
     pub carrier_frequency: f64,
     pub c: f64,
@@ -296,7 +297,15 @@ mod tests {
             range: 69.0,
             velocity: 8.0,
         };
-        let data = scene_to_data(&radar, &vec![obj1.clone(), obj2.clone()]);
+        let objects: Vec<Object> = vec![obj1.clone(), obj2.clone()]
+            .iter()
+            .map(|obj| Object {
+                angle: obj.angle.to_radians(),
+                velocity: obj.velocity,
+                range: obj.range,
+            })
+            .collect();
+        let data = scene_to_data(&radar, &objects);
         let output = Radar::radar_cube(&radar, &data);
         let detection_coords = detect(&output);
         assert_eq!(detection_coords.len(), 2);

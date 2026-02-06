@@ -195,7 +195,7 @@ impl eframe::App for App {
         let max_velocity = radar.max_velocity();
         let max_angle_deg = max_angle.to_degrees();
 
-        let detections = detect(&fft_cube);
+        let detection_coords = detect(&fft_cube);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Range–Angle heatmap (slice cube on Doppler)");
@@ -216,8 +216,7 @@ impl eframe::App for App {
 
                 Arrows::new("arrows", arrow_origins, arrow_tips)
             };
-
-            let detections = detections.iter().map(|d|{
+            let detections = detection_coords.iter().map(|d|{
                 let d = radar.coord_to_adr(d);
                 println!("detection: {:.2} m, {:.2} m/s, {:.2}°", d.2, d.1, d.0);
                 [d.0, d.1, d.2]
