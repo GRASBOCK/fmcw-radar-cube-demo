@@ -99,12 +99,15 @@ impl eframe::App for App {
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let wavelength = self.radar().wavelength();
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.heading("Radar parameters");
             ui.label(format!(
                 "carrier frequency: {:.1} GHz",
                 self.radar().carrier_frequency / 1E9
+            ));
+            ui.label(format!(
+                "receiver spacing: {:.2} mm",
+                self.radar().receiver_spacing * 1000.0
             ));
 
             ui.add(
@@ -119,10 +122,6 @@ impl eframe::App for App {
             ui.add(egui::Slider::new(&mut self.chirp_count, 4..=256).text("Chirp count"));
 
             ui.add(egui::Slider::new(&mut self.receivers, 2..=64).text("Receivers (Nz)"));
-            ui.add(
-                egui::Slider::new(&mut self.receiver_spacing, 0.0..=wavelength / 2.0)
-                    .text("Receiver spacing (m)"),
-            );
             ui.separator();
             ui.heading("Objects");
             for (i, obj) in self.objects.iter_mut().enumerate() {
