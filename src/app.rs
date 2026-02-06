@@ -27,24 +27,24 @@ impl Default for App {
         Self {
             carrier_frequency: cf,
             c,
-            sampling_frequency: 2e6,
-            bandwidth: 260e6,
-            chirp_duration: 87e-6,
-            chirp_count: 5,
+            sampling_frequency: 2.4e6,
+            bandwidth: 320e6,
+            chirp_duration: 90e-6,
+            chirp_count: 64,
 
-            receivers: 32,
+            receivers: 36,
             receiver_spacing: (c / cf) / 2.0,
 
             objects: vec![
                 Object {
-                    angle: -15.0,
-                    range: 20.0,
-                    velocity: 10.0,
+                    angle: -10.0,
+                    range: 69.0,
+                    velocity: 8.0,
                 },
                 Object {
-                    angle: 25.0,
-                    range: 35.0,
-                    velocity: -8.0,
+                    angle: 38.0,
+                    range: 27.0,
+                    velocity: -2.5,
                 },
             ],
         }
@@ -99,20 +99,6 @@ impl eframe::App for App {
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::MenuBar::new().ui(ui, |ui| {
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                    ui.add_space(16.0);
-                }
-                egui::widgets::global_theme_preference_buttons(ui);
-            });
-        });
         let wavelength = self.radar().wavelength();
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.heading("Radar parameters");
@@ -209,7 +195,7 @@ impl eframe::App for App {
         let max_velocity = radar.max_velocity();
         let max_angle_deg = max_angle.to_degrees();
 
-        let detections = detect(&fft_cube);
+        let detection_coords = detect(&fft_cube);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Range–Angle heatmap (slice cube on Doppler)");
@@ -230,10 +216,9 @@ impl eframe::App for App {
 
                 Arrows::new("arrows", arrow_origins, arrow_tips)
             };
-
-            let detections = detections.iter().map(|d|{
-                let d = radar.coord_to_rda(d);
-                println!("detection: {:.2}°, {:.2} m, {:.2} m/s", d.0, d.2, d.1);
+            let detections = detection_coords.iter().map(|d|{
+                let d = radar.coord_to_adr(d);
+                println!("detection: {:.2} m, {:.2} m/s, {:.2}°", d.2, d.1, d.0);
                 [d.0, d.1, d.2]
             }).collect::<Vec<[f64; 3]>>();
 
