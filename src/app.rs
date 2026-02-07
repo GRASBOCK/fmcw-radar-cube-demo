@@ -1,9 +1,7 @@
-use std::f64::consts::{FRAC_PI_2, PI};
-
 use crate::radar::{Object, Radar, detect, scene_to_data};
 use egui::vec2;
 use egui_plot::{Arrows, Legend, Plot, PlotImage, PlotPoint, PlotPoints, Points};
-use ndarray::{Array2, Array3, s};
+use ndarray::{Array3, s};
 use rustfft::num_complex::Complex64;
 
 pub struct App {

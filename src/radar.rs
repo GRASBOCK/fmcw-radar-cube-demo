@@ -93,11 +93,10 @@ impl Radar {
     pub fn angle_from_z(&self, z: usize) -> f64 {
         let angle_shifted = (z + self.nz() / 2) % self.nz();
         let max_angle = self.max_angle();
-        let angle = (angle_shifted as f64 / self.nz() as f64 * (max_angle * 2.0) - max_angle)
+        (angle_shifted as f64 / self.nz() as f64 * (max_angle * 2.0) - max_angle)
             .asin()
             .to_degrees()
-            / 2.0;
-        angle
+            / 2.0
     }
 
     pub fn z_from_angle(&self, angle_rad: f64) -> f64 {
@@ -105,8 +104,7 @@ impl Radar {
         let f_max = self.receiver_spacing * max_angle.sin() / self.wavelength();
         let f = self.receiver_spacing * angle_rad.sin() / self.wavelength();
         let f_ = if f < 0.0 { 2.0 * f_max + f } else { f };
-        let z = self.nz() as f64 / (2.0 * f_max) * f_;
-        z
+        self.nz() as f64 / (2.0 * f_max) * f_
     }
 
     pub fn coord_to_adr(&self, zyx: &(usize, usize, usize)) -> (f64, f64, f64) {
