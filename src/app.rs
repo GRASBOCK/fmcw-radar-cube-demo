@@ -28,8 +28,8 @@ impl Default for App {
             carrier_frequency: cf,
             c,
             sampling_frequency: 2.4e6,
-            bandwidth: 320e6,
-            chirp_duration: 90e-6,
+            bandwidth: 170e6,
+            chirp_duration: 45e-6,
             chirp_count: 64,
 
             receivers: 36,
