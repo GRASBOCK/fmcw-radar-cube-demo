@@ -186,22 +186,6 @@ impl eframe::App for App {
                 img.pixels[z_ * nx + x] = colormap_turbo_like(clamp01(t));
             }
         }
-        let f_max = radar.receiver_spacing * max_angle.sin() / radar.wavelength();
-        println!("fmax {:.3e}", f_max);
-        for z_ in [5, nz_ / 2 - 5, nz_ / 2 + 5, nz_ - 5] {
-            let angle = -max_angle_deg * 2.0 * (z_ as f64 / nz_ as f64) + max_angle_deg;
-            let f = radar.receiver_spacing * angle.to_radians().sin() / radar.wavelength();
-            let f_ = if f < 0.0 { 2.0 * f_max + f } else { f };
-            let z = radar.nz() as f64 / (2.0 * f_max) * f_;
-            println!("--");
-            dbg!(
-                z_ as f64 / nz_ as f64,
-                angle,
-                f / f_max,
-                f_ / f_max,
-                z / nz as f64
-            );
-        }
 
         let detection_coords = detect(&fft_cube);
 
