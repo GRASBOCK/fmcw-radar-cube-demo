@@ -99,17 +99,19 @@ impl eframe::App for App {
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::SidePanel::left("side_panel").show(ctx, |ui| {
+        egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Radar parameters");
-            ui.label(format!(
-                "carrier frequency: {:.1} GHz",
-                self.radar().carrier_frequency / 1E9
-            ));
-            ui.label(format!(
-                "receiver spacing: {:.2} mm",
-                self.radar().receiver_spacing * 1000.0
-            ));
-
+            ui.horizontal(|ui| {
+                ui.label(format!(
+                    "carrier frequency: {:.1} GHz",
+                    self.radar().carrier_frequency / 1E9
+                ));
+                ui.add_space(20.0);
+                ui.label(format!(
+                    "receiver spacing: {:.2} mm (λ/2)",
+                    self.radar().receiver_spacing * 1000.0
+                ));
+            });
             ui.add(
                 egui::Slider::new(&mut self.sampling_frequency, 0.2e6..=3.5e6)
                     .text("Sampling frequency (Hz)"),
@@ -120,17 +122,20 @@ impl eframe::App for App {
                     .text("Chirp duration (s)"),
             );
             ui.add(egui::Slider::new(&mut self.chirp_count, 4..=256).text("Chirp count"));
-
             ui.add(egui::Slider::new(&mut self.receivers, 2..=64).text("Receivers (Nz)"));
             ui.separator();
             ui.heading("Objects");
             for (i, obj) in self.objects.iter_mut().enumerate() {
-                ui.label(format!("Object {}", i + 1));
-                ui.add(egui::Slider::new(&mut obj.range, 1.0..=100.0).text("Range (m)"));
-                ui.add(egui::Slider::new(&mut obj.velocity, -20.0..=20.0).text("Velocity (m/s)"));
-                ui.add(egui::Slider::new(&mut obj.angle, -80.0..=80.0).text("Angle (deg)"));
+                ui.horizontal(|ui| {
+                    ui.label(format!("Object {}", i + 1));
+                    ui.add(egui::Slider::new(&mut obj.range, 1.0..=100.0).text("Range (m)"));
+                    ui.add_space(20.0);
+                    ui.add(egui::Slider::new(&mut obj.velocity, -20.0..=20.0).text("Velocity (m/s)"));
+                    ui.add_space(20.0);
+                    ui.add(egui::Slider::new(&mut obj.angle, -80.0..=80.0).text("Angle (deg)"));
+                });
             }
-        });
+
 
         // Build map first so we know ny for the slider max
         let (fft_cube, radar, nz, ny, nx) = self.cube_mag();
@@ -187,7 +192,6 @@ impl eframe::App for App {
 
         let detection_coords = detect(&fft_cube);
 
-        egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Range–Angle heatmap (slice cube on Doppler)");
 
             let texture =
