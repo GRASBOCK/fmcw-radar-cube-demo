@@ -217,6 +217,8 @@ impl eframe::App for App {
                 vec2(max_range as f32, (max_angle_deg * 2.0) as f32),
             );
 
+            let true_pos_points =
+                PlotPoints::from_iter(self.objects.iter().map(|obj| [obj.range, obj.angle]));
             let true_velocity_arrows = {
                 let arrow_origins =
                     PlotPoints::from_iter(self.objects.iter().map(|obj| [obj.range, obj.angle]));
@@ -226,7 +228,7 @@ impl eframe::App for App {
                         .map(|obj| [obj.range - obj.velocity, obj.angle]),
                 );
 
-                Arrows::new("arrows", arrow_origins, arrow_tips)
+                Arrows::new("arrows", arrow_origins, arrow_tips).color(egui::Color32::RED)
             };
             let detections = detection_coords
                 .iter()
@@ -244,7 +246,7 @@ impl eframe::App for App {
                 let arrow_tips =
                     PlotPoints::from_iter(detections.iter().map(|d| [d[2] - d[1], d[0]]));
 
-                Arrows::new("arrows", arrow_origins, arrow_tips)
+                Arrows::new("arrows", arrow_origins, arrow_tips).color(egui::Color32::GREEN)
             };
 
             let plot = Plot::new("items_demo")
@@ -261,8 +263,17 @@ impl eframe::App for App {
             plot.show(ui, |plot_ui| {
                 plot_ui.image(image.name("Image"));
                 plot_ui.arrows(true_velocity_arrows.name("Actual Velocity"));
+                plot_ui.points(
+                    Points::new("Actual Positions", true_pos_points)
+                        .radius(2.0)
+                        .color(egui::Color32::RED),
+                );
                 plot_ui.arrows(detection_velocity_arrows.name("Detected Velocity"));
-                plot_ui.points(Points::new("Detections", detection_points).radius(3.0));
+                plot_ui.points(
+                    Points::new("Detections", detection_points)
+                        .radius(2.0)
+                        .color(egui::Color32::GREEN),
+                );
             });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
