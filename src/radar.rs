@@ -90,13 +90,27 @@ impl Radar {
         self.receivers
     }
 
-    pub fn coord_to_adr(&self, zyx: &(usize, usize, usize)) -> (f64, f64, f64) {
-        let angle_shifted = (zyx.0 + self.nz() / 2) % self.nz();
+    pub fn angle_from_z(&self, z: usize) -> f64 {
+        let angle_shifted = (z + self.nz() / 2) % self.nz();
         let max_angle = self.max_angle();
         let angle = (angle_shifted as f64 / self.nz() as f64 * (max_angle * 2.0) - max_angle)
             .asin()
             .to_degrees()
             / 2.0;
+        angle
+    }
+
+    pub fn z_from_angle(&self, angle_rad: f64) -> f64 {
+        let max_angle = self.max_angle();
+        let f_max = self.receiver_spacing * max_angle.sin() / self.wavelength();
+        let f = self.receiver_spacing * angle_rad.sin() / self.wavelength();
+        let f_ = if f < 0.0 { 2.0 * f_max + f } else { f };
+        let z = self.nz() as f64 / (2.0 * f_max) * f_;
+        z
+    }
+
+    pub fn coord_to_adr(&self, zyx: &(usize, usize, usize)) -> (f64, f64, f64) {
+        let angle = self.angle_from_z(zyx.0);
         let velocity_shifted = (zyx.1 + 1 + self.ny() / 2) % self.ny();
         let max_vel = self.max_velocity();
         let velocity = -(velocity_shifted as f64 / self.ny() as f64 * (max_vel * 2.0) - max_vel);
@@ -355,5 +369,53 @@ mod tests {
                 velocity_tolerance
             );
         }
+    }
+
+    #[test]
+    fn z_from_angle_coversion() {
+        let c = 299_792_458.0;
+        let cf = 77e9;
+        let radar = Radar {
+            carrier_frequency: cf,
+            c: c,
+            sampling_frequency: 2.4e6,
+            bandwidth: 320e6,
+            chirp_duration: 90e-6,
+            chirp_count: 64,
+            receivers: 36,
+            receiver_spacing: (c / cf) / 2.0,
+        };
+        let angles = [89.0f64, 5.0, -5.0, -89.0];
+        let expected_z_fracs = [0.49f64, 0.044, 0.956, 0.51];
+        for i in 0..angles.len() {
+            let angle = angles[i];
+            let z = radar.z_from_angle(angle.to_radians());
+            let z_frac = z / radar.nz() as f64;
+            let expected = expected_z_fracs[i];
+            assert!(
+                (z_frac - expected).abs() < 0.01,
+                "At {:.3}° z/nz should be {:.3}, but it is {:.3}",
+                angle,
+                expected,
+                z_frac
+            );
+        }
+        // for debugging
+        //let f_max = radar.receiver_spacing * max_angle.sin() / radar.wavelength();
+        //println!("fmax {:.3e}", f_max);
+        //for z_ in [5, nz_ / 2 - 5, nz_ / 2 + 5, nz_ - 5] {
+        //    let angle = -max_angle_deg * 2.0 * (z_ as f64 / nz_ as f64) + max_angle_deg;
+        //    let f = radar.receiver_spacing * angle.to_radians().sin() / radar.wavelength();
+        //    let f_ = if f < 0.0 { 2.0 * f_max + f } else { f };
+        //    let z = radar.nz() as f64 / (2.0 * f_max) * f_;
+        //    println!("--");
+        //    dbg!(
+        //        z_ as f64 / nz_ as f64,
+        //        angle,
+        //        f / f_max,
+        //        f_ / f_max,
+        //        z / nz as f64
+        //    );
+        //}
     }
 }

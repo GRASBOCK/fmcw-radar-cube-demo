@@ -1,3 +1,5 @@
+use std::f64::consts::{FRAC_PI_2, PI};
+
 use crate::radar::{Object, Radar, detect, scene_to_data};
 use egui::vec2;
 use egui_plot::{Arrows, Legend, Plot, PlotImage, PlotPoint, PlotPoints, Points};
@@ -138,19 +140,7 @@ impl eframe::App for App {
         let doppler_bin = 20.min(ny.saturating_sub(1));
 
         // Range-Angle slice: (nz, nx) = take doppler bin
-        let mut ra2d = fft_cube.slice(s![.., doppler_bin, ..]).to_owned();
-
-        // fftshift along "angle bins" axis so broadside-ish energy is centered.
-        // new[a, r] = old[(a + nz/2) % nz, r]
-        let shift = nz / 2;
-        let mut shifted = Array2::<f64>::zeros((nz, nx));
-        for a in 0..nz {
-            let src_a = (a + shift) % nz;
-            for r in 0..nx {
-                shifted[(a, r)] = ra2d[(src_a, r)];
-            }
-        }
-        ra2d = shifted;
+        let ra2d = fft_cube.slice(s![.., doppler_bin, ..]).to_owned();
 
         fn clamp01(x: f64) -> f32 {
             if x <= 0.0 {
@@ -179,20 +169,39 @@ impl eframe::App for App {
         };
         let denom = (max_v - min_v).max(1e-12);
 
-        // Image dims: width = range bins (x), height = angle bins (y)
-        let mut img = egui::ColorImage::new([nx, nz], vec![egui::Color32::BLACK; nx * nz]);
-        for a in 0..nz {
-            for r in 0..nx {
-                let v = ra2d[(a, r)];
-                let t = (v - min_v) / denom;
-                img.pixels[(nz - a - 1) * nx + r] = colormap_turbo_like(clamp01(t));
-            }
-        }
-
         let max_range = radar.max_range();
         let max_angle = radar.max_angle();
         let max_velocity = radar.max_velocity();
         let max_angle_deg = max_angle.to_degrees();
+
+        // Image dims: width = range bins (x), height = angle bins (y)
+        let nz_ = nz * 3;
+        let mut img = egui::ColorImage::new([nx, nz_], vec![egui::Color32::BLACK; nx * nz_]);
+        for z_ in 0..nz_ {
+            for x in 0..nx {
+                let angle = -max_angle_deg * 2.0 * (z_ as f64 / nz_ as f64) + max_angle_deg;
+                let z = radar.z_from_angle(angle.to_radians()) as usize % nz;
+                let v = ra2d[(z, x)];
+                let t = (v - min_v) / denom;
+                img.pixels[z_ * nx + x] = colormap_turbo_like(clamp01(t));
+            }
+        }
+        let f_max = radar.receiver_spacing * max_angle.sin() / radar.wavelength();
+        println!("fmax {:.3e}", f_max);
+        for z_ in [5, nz_ / 2 - 5, nz_ / 2 + 5, nz_ - 5] {
+            let angle = -max_angle_deg * 2.0 * (z_ as f64 / nz_ as f64) + max_angle_deg;
+            let f = radar.receiver_spacing * angle.to_radians().sin() / radar.wavelength();
+            let f_ = if f < 0.0 { 2.0 * f_max + f } else { f };
+            let z = radar.nz() as f64 / (2.0 * f_max) * f_;
+            println!("--");
+            dbg!(
+                z_ as f64 / nz_ as f64,
+                angle,
+                f / f_max,
+                f_ / f_max,
+                z / nz as f64
+            );
+        }
 
         let detection_coords = detect(&fft_cube);
 
