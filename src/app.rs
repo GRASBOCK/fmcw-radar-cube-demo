@@ -99,44 +99,6 @@ impl eframe::App for App {
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Radar parameters");
-            ui.horizontal(|ui| {
-                ui.label(format!(
-                    "carrier frequency: {:.1} GHz",
-                    self.radar().carrier_frequency / 1E9
-                ));
-                ui.add_space(20.0);
-                ui.label(format!(
-                    "receiver spacing: {:.2} mm (λ/2)",
-                    self.radar().receiver_spacing * 1000.0
-                ));
-            });
-            ui.add(
-                egui::Slider::new(&mut self.sampling_frequency, 0.2e6..=3.5e6)
-                    .text("Sampling frequency (Hz)"),
-            );
-            ui.add(egui::Slider::new(&mut self.bandwidth, 0.1e9..=1e9).text("Bandwidth (Hz)"));
-            ui.add(
-                egui::Slider::new(&mut self.chirp_duration, 1e-6..=200e-6)
-                    .text("Chirp duration (s)"),
-            );
-            ui.add(egui::Slider::new(&mut self.chirp_count, 4..=256).text("Chirp count"));
-            ui.add(egui::Slider::new(&mut self.receivers, 2..=64).text("Receivers (Nz)"));
-            ui.separator();
-            ui.heading("Objects");
-            for (i, obj) in self.objects.iter_mut().enumerate() {
-                ui.horizontal(|ui| {
-                    ui.label(format!("Object {}", i + 1));
-                    ui.add(egui::Slider::new(&mut obj.range, 1.0..=100.0).text("Range (m)"));
-                    ui.add_space(20.0);
-                    ui.add(egui::Slider::new(&mut obj.velocity, -20.0..=20.0).text("Velocity (m/s)"));
-                    ui.add_space(20.0);
-                    ui.add(egui::Slider::new(&mut obj.angle, -80.0..=80.0).text("Angle (deg)"));
-                });
-            }
-
-
         // Build map first so we know ny for the slider max
         let (fft_cube, radar, nz, ny, nx) = self.cube_mag();
 
@@ -192,6 +154,57 @@ impl eframe::App for App {
 
         let detection_coords = detect(&fft_cube);
 
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Radar parameters");
+            ui.horizontal(|ui| {
+                ui.label(format!(
+                    "carrier frequency: {:.1} GHz",
+                    self.radar().carrier_frequency / 1E9
+                ));
+                ui.add_space(20.0);
+                ui.label(format!(
+                    "receiver spacing: {:.2} mm (λ/2)",
+                    self.radar().receiver_spacing * 1000.0
+                ));
+            });
+            ui.add(
+                egui::Slider::new(&mut self.sampling_frequency, 0.2e6..=3.5e6)
+                    .text("Sampling frequency (Hz)"),
+            );
+            ui.add(egui::Slider::new(&mut self.bandwidth, 0.1e9..=1e9).text("Bandwidth (Hz)"));
+            ui.add(
+                egui::Slider::new(&mut self.chirp_duration, 1e-6..=200e-6)
+                    .text("Chirp duration (s)"),
+            );
+            ui.add(egui::Slider::new(&mut self.chirp_count, 4..=256).text("Chirp count"));
+            ui.add(egui::Slider::new(&mut self.receivers, 2..=64).text("Receivers (Nz)"));
+            ui.horizontal(|ui| {
+                ui.label(format!("Max Range: {max_range:.2} m"));
+                ui.add_space(8.0);
+                ui.label(format!("Max Angle: {max_angle_deg:.2}°"));
+                ui.add_space(8.0);
+                ui.label(format!("Max Velocity: {max_velocity:.2} m/s"));
+            });
+            ui.label(format!(
+                "Range–Angle map. cube shape (angle, doppler, range)=({nz}, {ny}, {nx})."
+            ));
+            ui.separator();
+            ui.heading("Objects");
+            for (i, obj) in self.objects.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Object {}", i + 1));
+                    ui.add(egui::Slider::new(&mut obj.range, 1.0..=100.0).text("Range (m)"));
+                    ui.add_space(20.0);
+                    ui.add(
+                        egui::Slider::new(&mut obj.velocity, -20.0..=20.0).text("Velocity (m/s)"),
+                    );
+                    ui.add_space(20.0);
+                    ui.add(egui::Slider::new(&mut obj.angle, -80.0..=80.0).text("Angle (deg)"));
+                });
+            }
+
+            ui.separator();
+
             ui.heading("Range–Angle heatmap (slice cube on Doppler)");
 
             let texture =
@@ -200,44 +213,51 @@ impl eframe::App for App {
             let image = PlotImage::new(
                 "range_angle_texture",
                 &texture,
-                PlotPoint::new(max_range/2.0, 0.0),
-                vec2(max_range as f32, (max_angle_deg*2.0) as f32),
+                PlotPoint::new(max_range / 2.0, 0.0),
+                vec2(max_range as f32, (max_angle_deg * 2.0) as f32),
             );
 
             let true_velocity_arrows = {
-                let arrow_origins = PlotPoints::from_iter(self.objects.iter().map(|obj| [obj.range, obj.angle]));
-                let arrow_tips = PlotPoints::from_iter(self.objects.iter().map(|obj| [obj.range-obj.velocity, obj.angle]));
+                let arrow_origins =
+                    PlotPoints::from_iter(self.objects.iter().map(|obj| [obj.range, obj.angle]));
+                let arrow_tips = PlotPoints::from_iter(
+                    self.objects
+                        .iter()
+                        .map(|obj| [obj.range - obj.velocity, obj.angle]),
+                );
 
                 Arrows::new("arrows", arrow_origins, arrow_tips)
             };
-            let detections = detection_coords.iter().map(|d|{
-                let d = radar.coord_to_adr(d);
-                println!("detection: {:.2} m, {:.2} m/s, {:.2}°", d.2, d.1, d.0);
-                [d.0, d.1, d.2]
-            }).collect::<Vec<[f64; 3]>>();
+            let detections = detection_coords
+                .iter()
+                .map(|d| {
+                    let d = radar.coord_to_adr(d);
+                    println!("detection: {:.2} m, {:.2} m/s, {:.2}°", d.2, d.1, d.0);
+                    [d.0, d.1, d.2]
+                })
+                .collect::<Vec<[f64; 3]>>();
 
-            let detection_points = PlotPoints::from_iter(detections.iter().map(|d|{
-                [d[2], d[0]]
-            }));
+            let detection_points = PlotPoints::from_iter(detections.iter().map(|d| [d[2], d[0]]));
 
             let detection_velocity_arrows = {
                 let arrow_origins = PlotPoints::from_iter(detections.iter().map(|d| [d[2], d[0]]));
-                let arrow_tips = PlotPoints::from_iter(detections.iter().map(|d| [d[2]-d[1], d[0]]));
+                let arrow_tips =
+                    PlotPoints::from_iter(detections.iter().map(|d| [d[2] - d[1], d[0]]));
 
                 Arrows::new("arrows", arrow_origins, arrow_tips)
             };
 
             let plot = Plot::new("items_demo")
-                        .legend(
-                            Legend::default()
-                                .position(egui_plot::Corner::RightBottom)
-                                .title("Items"),
-                        )
-                        .show_x(false)
-                        .show_y(false)
-                        .default_x_bounds(-20.0, 120.0)
-                        .default_y_bounds(-90.0, 90.0)
-                        .view_aspect(2.0);
+                .legend(
+                    Legend::default()
+                        .position(egui_plot::Corner::RightBottom)
+                        .title("Items"),
+                )
+                .show_x(false)
+                .show_y(false)
+                .default_x_bounds(-20.0, 120.0)
+                .default_y_bounds(-90.0, 90.0)
+                .view_aspect(2.0);
             plot.show(ui, |plot_ui| {
                 plot_ui.image(image.name("Image"));
                 plot_ui.arrows(true_velocity_arrows.name("Actual Velocity"));
@@ -245,24 +265,10 @@ impl eframe::App for App {
                 plot_ui.points(Points::new("Detections", detection_points).radius(3.0));
             });
 
-            ui.label(format!(
-                "Range–Angle map. cube shape (angle, doppler, range)=({nz}, {ny}, {nx}). Max range ≈ {max_range:.1} m"
-            ));
-
-            ui.horizontal(|ui| {
-                ui.label(format!("Max Range: {max_range:.2} m"));
-                ui.add_space(8.0);
-                ui.label(format!("Max Angle: {max_angle_deg:.2}°"));
-                ui.add_space(8.0);
-                ui.label(format!("Max Velocity: {max_velocity:.2} m/s"));
-            });
-
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 powered_by_egui_and_eframe(ui);
                 egui::warn_if_debug_build(ui);
             });
-
-
         });
     }
 }
